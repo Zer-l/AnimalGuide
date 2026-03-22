@@ -6,11 +6,11 @@ plugins {
 }
 
 android {
-    namespace = "com.yourname.wildanimalguide"
+    namespace = "com.permissionx.animalguide"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.yourname.wildanimalguide"
+        applicationId = "com.permissionx.animalguide"
         minSdk = 26
         targetSdk = 35
         versionCode = 1
