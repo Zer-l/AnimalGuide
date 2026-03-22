@@ -1,9 +1,14 @@
 package com.permissionx.animalguide.ui.camera
 
 import android.Manifest
+import android.content.Intent
 import android.content.Context
 import android.net.Uri
+import android.os.Build
+import android.provider.Settings
+import android.view.OrientationEventListener
 import android.widget.Toast
+import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
@@ -25,7 +30,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
@@ -43,17 +50,61 @@ fun CameraScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
 
     var hasCameraPermission by remember { mutableStateOf(false) }
+    var hasMediaPermission by remember { mutableStateOf(false) }
     var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
 
-    // 相机权限申请
+    var showCameraRationale by remember { mutableStateOf(false) }
+    var showMediaRationale by remember { mutableStateOf(false) }
+    var showCameraGoSettings by remember { mutableStateOf(false) }
+    var showMediaGoSettings by remember { mutableStateOf(false) }
+    var shouldRequestMedia by remember { mutableStateOf(false) }
+
+    val mediaPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        Manifest.permission.READ_MEDIA_IMAGES
+    } else {
+        Manifest.permission.READ_EXTERNAL_STORAGE
+    }
+
+    val mediaPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            hasMediaPermission = true
+            showMediaRationale = false
+        } else {
+            val activity = context as ComponentActivity
+            val canAsk = ActivityCompat.shouldShowRequestPermissionRationale(
+                activity, mediaPermission
+            )
+            if (canAsk) {
+                showMediaRationale = true
+            } else {
+                showMediaGoSettings = true
+            }
+        }
+    }
+
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
-        hasCameraPermission = granted
-        if (!granted) Toast.makeText(context, "需要相机权限才能拍照", Toast.LENGTH_SHORT).show()
+        if (granted) {
+            hasCameraPermission = true
+            showCameraRationale = false
+        } else {
+            val activity = context as ComponentActivity
+            val canAsk = ActivityCompat.shouldShowRequestPermissionRationale(
+                activity, Manifest.permission.CAMERA
+            )
+            if (canAsk) {
+                showCameraRationale = true
+            } else {
+                showCameraGoSettings = true
+            }
+        }
+        // 相机权限处理完后触发图片权限申请
+        shouldRequestMedia = true
     }
 
-    // 相册选图
     val galleryLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -63,8 +114,99 @@ fun CameraScreen(
         }
     }
 
+    // 启动时只申请相机权限
     LaunchedEffect(Unit) {
         cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+    }
+
+    // 相机权限完成后申请图片权限
+    LaunchedEffect(shouldRequestMedia) {
+        if (shouldRequestMedia) {
+            mediaPermissionLauncher.launch(mediaPermission)
+            shouldRequestMedia = false
+        }
+    }
+
+//    // 第一次拒绝相机权限弹窗
+//    if (showCameraRationale) {
+//        AlertDialog(
+//            onDismissRequest = {},
+//            title = { Text("需要相机权限") },
+//            text = { Text("拍摄动物照片需要使用相机，请授予相机权限") },
+//            confirmButton = {
+//                TextButton(onClick = {
+//                    showCameraRationale = false
+//                    cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+//                }) { Text("重新授权") }
+//            },
+//            dismissButton = {
+//                TextButton(onClick = {
+//                    showCameraRationale = false
+//                }) { Text("取消") }
+//            }
+//        )
+//    }
+
+    // 永久拒绝相机权限弹窗
+    if (showCameraGoSettings) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("相机权限被禁止") },
+            text = { Text("请前往设置 → 应用 → AnimalGuide → 权限，手动开启相机权限") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showCameraGoSettings = false
+                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = Uri.fromParts("package", context.packageName, null)
+                    }
+                    context.startActivity(intent)
+                }) { Text("去设置") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCameraGoSettings = false }) { Text("取消") }
+            }
+        )
+    }
+
+//    // 第一次拒绝图片权限弹窗
+//    if (showMediaRationale) {
+//        AlertDialog(
+//            onDismissRequest = {},
+//            title = { Text("需要相册权限") },
+//            text = { Text("从相册选择动物图片需要访问您的图片，请授予相册权限") },
+//            confirmButton = {
+//                TextButton(onClick = {
+//                    showMediaRationale = false
+//                    mediaPermissionLauncher.launch(mediaPermission)
+//                }) { Text("重新授权") }
+//            },
+//            dismissButton = {
+//                TextButton(onClick = {
+//                    showMediaRationale = false
+//                }) { Text("取消") }
+//            }
+//        )
+//    }
+
+    // 永久拒绝图片权限弹窗
+    if (showMediaGoSettings) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("相册权限被禁止") },
+            text = { Text("请前往设置 → 应用 → AnimalGuide → 权限，手动开启存储权限") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showMediaGoSettings = false
+                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = Uri.fromParts("package", context.packageName, null)
+                    }
+                    context.startActivity(intent)
+                }) { Text("去设置") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showMediaGoSettings = false }) { Text("取消") }
+            }
+        )
     }
 
     Box(
@@ -76,6 +218,21 @@ fun CameraScreen(
             AndroidView(
                 factory = { ctx ->
                     val previewView = PreviewView(ctx)
+
+                    val orientationEventListener = object : OrientationEventListener(ctx) {
+                        override fun onOrientationChanged(orientation: Int) {
+                            if (orientation == ORIENTATION_UNKNOWN) return
+                            val rotation = when (orientation) {
+                                in 45..134 -> android.view.Surface.ROTATION_270
+                                in 135..224 -> android.view.Surface.ROTATION_180
+                                in 225..314 -> android.view.Surface.ROTATION_90
+                                else -> android.view.Surface.ROTATION_0
+                            }
+                            imageCapture?.targetRotation = rotation
+                        }
+                    }
+                    orientationEventListener.enable()
+
                     val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
                     cameraProviderFuture.addListener({
                         val cameraProvider = cameraProviderFuture.get()
@@ -106,11 +263,18 @@ fun CameraScreen(
             )
         } else {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("请授予相机权限", color = Color.White)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("需要相机权限才能拍照", color = Color.White, fontSize = 16.sp)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(onClick = {
+                        cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                    }) {
+                        Text("授予权限")
+                    }
+                }
             }
         }
 
-        // 底部操作栏
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -119,9 +283,14 @@ fun CameraScreen(
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 相册按钮
             IconButton(
-                onClick = { galleryLauncher.launch("image/*") },
+                onClick = {
+                    if (hasMediaPermission) {
+                        galleryLauncher.launch("image/*")
+                    } else {
+                        mediaPermissionLauncher.launch(mediaPermission)
+                    }
+                },
                 modifier = Modifier
                     .size(56.dp)
                     .background(Color.White.copy(alpha = 0.2f), CircleShape)
@@ -134,7 +303,6 @@ fun CameraScreen(
                 )
             }
 
-            // 拍照按钮
             Button(
                 onClick = {
                     takePhoto(
@@ -162,7 +330,6 @@ fun CameraScreen(
                 )
             }
 
-            // 占位保持居中
             Spacer(modifier = Modifier.size(56.dp))
         }
     }

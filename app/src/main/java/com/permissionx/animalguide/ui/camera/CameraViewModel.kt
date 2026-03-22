@@ -16,8 +16,4 @@ class CameraViewModel @Inject constructor() : ViewModel() {
     fun onImageCaptured(uri: Uri) {
         _capturedImageUri.value = uri
     }
-
-    fun clearImage() {
-        _capturedImageUri.value = null
-    }
 }

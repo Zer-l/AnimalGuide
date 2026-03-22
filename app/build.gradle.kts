@@ -1,8 +1,17 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
+}
+
+// 读取 local.properties
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localProperties.load(localPropertiesFile.inputStream())
 }
 
 android {
@@ -15,10 +24,14 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
+
+        buildConfigField("String", "BAIDU_API_KEY", "\"${localProperties["BAIDU_API_KEY"]}\"")
+        buildConfigField("String", "BAIDU_SECRET_KEY", "\"${localProperties["BAIDU_SECRET_KEY"]}\"")
     }
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.14"
@@ -81,4 +94,6 @@ dependencies {
     implementation(libs.lifecycle.viewmodel.compose)
 
     implementation("androidx.compose.material:material-icons-extended")
+
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
 }
