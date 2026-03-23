@@ -1,6 +1,7 @@
 package com.permissionx.animalguide.di
 
 import com.permissionx.animalguide.data.remote.BaiduApi
+import com.permissionx.animalguide.data.remote.DoubaoApi
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -37,5 +38,16 @@ object NetworkModule {
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(BaiduApi::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideDoubaoApi(okHttpClient: OkHttpClient): DoubaoApi {
+        return Retrofit.Builder()
+            .baseUrl("https://ark.cn-beijing.volces.com/")
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(DoubaoApi::class.java)
     }
 }

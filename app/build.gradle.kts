@@ -27,6 +27,27 @@ android {
 
         buildConfigField("String", "BAIDU_API_KEY", "\"${localProperties["BAIDU_API_KEY"]}\"")
         buildConfigField("String", "BAIDU_SECRET_KEY", "\"${localProperties["BAIDU_SECRET_KEY"]}\"")
+
+        buildConfigField("String", "DOUBAO_API_KEY", "\"${localProperties["DOUBAO_API_KEY"]}\"")
+        buildConfigField(
+            "String",
+            "DOUBAO_ENDPOINT_ID",
+            "\"${localProperties["DOUBAO_ENDPOINT_ID"]}\""
+        )
+    }
+
+    buildTypes {
+        debug {
+            isDebuggable = true
+        }
+        release {
+            isDebuggable = false
+            isMinifyEnabled = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+        }
     }
 
     buildFeatures {

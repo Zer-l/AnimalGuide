@@ -3,15 +3,20 @@ package com.permissionx.animalguide.data.repository
 import android.content.Context
 import android.net.Uri
 import com.permissionx.animalguide.data.remote.BaiduApi
+import com.permissionx.animalguide.data.remote.DoubaoApi
 import com.permissionx.animalguide.data.remote.ImageCompressor
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 import com.permissionx.animalguide.BuildConfig
+import com.permissionx.animalguide.data.remote.dto.DoubaoMessage
+import com.permissionx.animalguide.data.remote.dto.DoubaoRequest
+import com.permissionx.animalguide.domain.model.AnimalInfo
 
 @Singleton
 class AnimalRepository @Inject constructor(
     private val baiduApi: BaiduApi,
+    private val doubaoApi: DoubaoApi,
     @ApplicationContext private val context: Context
 ) {
     // 缓存token，避免频繁获取
@@ -59,6 +64,45 @@ class AnimalRepository @Inject constructor(
                 e is java.net.SocketTimeoutException -> "请求超时，请检查网络后重试"
                 e.message?.contains("Unable to resolve host") == true -> "网络连接失败，请检查网络后重试"
                 else -> "识别失败：${e.message}"
+            }
+            Result.failure(Exception(message))
+        }
+    }
+
+    suspend fun generateAnimalInfo(animalName: String): Result<AnimalInfo> {
+        return try {
+            val prompt = """
+                请根据动物名称"$animalName"生成科普内容，严格以JSON格式返回，不要返回任何其他内容，不要加markdown代码块：
+                {"name":"动物中文名","scientificName":"学名","habitat":"栖息地描述","diet":"食性描述","lifespan":"平均寿命","conservationStatus":"LC/NT/VU/EN/CR之一","description":"150字以内的科普介绍"}
+            """.trimIndent()
+
+            val response = doubaoApi.generateAnimalInfo(
+                authorization = "Bearer ${BuildConfig.DOUBAO_API_KEY}",
+                request = DoubaoRequest(
+                    model = BuildConfig.DOUBAO_ENDPOINT_ID,
+                    messages = listOf(
+                        DoubaoMessage(role = "user", content = prompt)
+                    )
+                )
+            )
+
+            val content = response.choices?.firstOrNull()?.message?.content
+                ?: return Result.failure(Exception("生成科普内容失败"))
+
+            // 清理多余字符后解析JSON
+            val clean = content
+                .replace("```json", "")
+                .replace("```", "")
+                .trim()
+
+            val gson = com.google.gson.Gson()
+            val info = gson.fromJson(clean, AnimalInfo::class.java)
+            Result.success(info)
+        } catch (e: Exception) {
+            val message = when {
+                e is java.net.UnknownHostException -> "网络连接失败，请检查网络后重试"
+                e is java.net.SocketTimeoutException -> "请求超时，请检查网络后重试"
+                else -> "科普内容生成失败：${e.message}"
             }
             Result.failure(Exception(message))
         }
