@@ -16,8 +16,12 @@ sealed class ResultUiState {
     object RecognizingAnimal : ResultUiState()
     data class RecognizeSuccess(val results: List<Pair<String, Float>>) : ResultUiState()
     object GeneratingInfo : ResultUiState()
-    data class InfoSuccess(val animalName: String, val confidence: Float, val info: AnimalInfo) :
-        ResultUiState()
+    data class InfoSuccess(
+        val animalName: String,
+        val confidence: Float,
+        val info: AnimalInfo,
+        val otherResults: List<Pair<String, Float>> = emptyList()
+    ) : ResultUiState()
 
     data class Error(val message: String) : ResultUiState()
 }
@@ -56,12 +60,22 @@ class ResultViewModel @Inject constructor(
             val infoResult = repository.generateAnimalInfo(topAnimal.first)
             _state.value = infoResult.fold(
                 onSuccess = { info ->
-                    ResultUiState.InfoSuccess(topAnimal.first, topAnimal.second, info)
+                    ResultUiState.InfoSuccess(
+                        animalName = topAnimal.first,
+                        confidence = topAnimal.second,
+                        info = info,
+                        otherResults = results.drop(1) // 去掉第一个，剩余的就是其他候选
+                    )
                 },
                 onFailure = {
                     ResultUiState.Error(it.message ?: "科普内容生成失败")
                 }
             )
         }
+    }
+
+    fun retry(uri: Uri) {
+        _state.value = ResultUiState.Idle
+        recognizeAnimal(uri)
     }
 }

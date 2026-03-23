@@ -1,6 +1,5 @@
 package com.permissionx.animalguide.ui.navigation
 
-import android.net.Uri
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -17,7 +16,7 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
         }
         composable("result/{imageUri}") { backStackEntry ->
             val imageUri = backStackEntry.arguments?.getString("imageUri") ?: return@composable
-            ResultScreen(imageUri = imageUri)
+            ResultScreen(imageUri = imageUri, navController = navController)
         }
     }
 }

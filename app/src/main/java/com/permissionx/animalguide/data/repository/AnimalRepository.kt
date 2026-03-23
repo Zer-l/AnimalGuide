@@ -72,9 +72,9 @@ class AnimalRepository @Inject constructor(
     suspend fun generateAnimalInfo(animalName: String): Result<AnimalInfo> {
         return try {
             val prompt = """
-                请根据动物名称"$animalName"生成科普内容，严格以JSON格式返回，不要返回任何其他内容，不要加markdown代码块：
-                {"name":"动物中文名","scientificName":"学名","habitat":"栖息地描述","diet":"食性描述","lifespan":"平均寿命","conservationStatus":"LC/NT/VU/EN/CR之一","description":"150字以内的科普介绍"}
-            """.trimIndent()
+    请根据动物名称"$animalName"生成详细科普内容，严格以JSON格式返回，不要返回任何其他内容，不要加markdown代码块：
+    {"name":"动物中文名","scientificName":"学名","habitat":"详细的栖息地描述，包括地理分布和具体环境","diet":"详细的食性描述，包括主要食物和觅食方式","lifespan":"平均寿命及影响寿命的因素","conservationStatus":"LC/NT/VU/EN/CR之一","description":"300字以内的详细科普介绍，包括外形特征、行为习性、繁殖方式等"}
+""".trimIndent()
 
             val response = doubaoApi.generateAnimalInfo(
                 authorization = "Bearer ${BuildConfig.DOUBAO_API_KEY}",
