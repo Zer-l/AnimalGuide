@@ -1,6 +1,5 @@
 package com.permissionx.animalguide.ui.result
 
-import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -11,7 +10,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.*
@@ -30,6 +29,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.permissionx.animalguide.domain.model.AnimalInfo
+import androidx.core.net.toUri
 
 @Composable
 fun ResultScreen(
@@ -37,7 +37,7 @@ fun ResultScreen(
     navController: NavController,
     viewModel: ResultViewModel = hiltViewModel()
 ) {
-    val uri = remember { Uri.parse(imageUri) }
+    val uri = remember { imageUri.toUri() }
     val state by viewModel.state.collectAsState()
 
     LaunchedEffect(uri) {
@@ -50,6 +50,45 @@ fun ResultScreen(
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
         ) {
+            val manualInputVisible by viewModel.manualInputVisible.collectAsState()
+            var manualAnimalName by remember { mutableStateOf("") }
+
+            if (manualInputVisible) {
+                AlertDialog(
+                    onDismissRequest = { viewModel.hideManualInput() },
+                    title = { Text("手动标注动物") },
+                    text = {
+                        Column {
+                            Text("请输入你认识的动物名称：", fontSize = 14.sp)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = manualAnimalName,
+                                onValueChange = { manualAnimalName = it },
+                                placeholder = { Text("例如：哈基米") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                if (manualAnimalName.isNotBlank()) {
+                                    viewModel.recognizeManually(uri, manualAnimalName.trim())
+                                    manualAnimalName = ""
+                                }
+                            }
+                        ) { Text("确认") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = {
+                            viewModel.hideManualInput()
+                            manualAnimalName = ""
+                        }) { Text("取消") }
+                    }
+                )
+            }
+
             // 顶部图片区域
             Box(
                 modifier = Modifier
@@ -84,7 +123,7 @@ fun ResultScreen(
                         .background(Color.Black.copy(alpha = 0.3f), CircleShape)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.ArrowBack,
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "返回",
                         tint = Color.White
                     )
@@ -177,7 +216,10 @@ fun ResultScreen(
                         confidence = s.confidence,
                         info = s.info,
                         otherResults = s.otherResults,
-                        onRetake = { navController.popBackStack() }
+                        onRetake = { navController.popBackStack() },
+                        onSave = { viewModel.saveToPokedex() },
+                        isSaved = s.isSaved,
+                        isAlreadyExists = s.isAlreadyExists
                     )
                 }
 
@@ -200,9 +242,13 @@ fun ResultScreen(
                             OutlinedButton(onClick = { navController.popBackStack() }) {
                                 Text("重新拍摄")
                             }
-                            Button(onClick = { viewModel.retry(uri) }) {
+                            OutlinedButton(onClick = { viewModel.retry(uri) }) {
                                 Text("重新识别")
                             }
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        TextButton(onClick = { viewModel.showManualInput() }) {
+                            Text("识别结果不满意？试试手动标注")
                         }
                     }
                 }
@@ -216,7 +262,10 @@ fun AnimalInfoCard(
     confidence: Float,
     info: AnimalInfo,
     otherResults: List<Pair<String, Float>>,
-    onRetake: () -> Unit
+    onRetake: () -> Unit,
+    onSave: () -> Unit,
+    isSaved: Boolean,
+    isAlreadyExists: Boolean
 ) {
     var showOthers by remember { mutableStateOf(false) }
 
@@ -339,13 +388,60 @@ fun AnimalInfoCard(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // 再拍一张按钮
-        Button(
+        // 收录图鉴按钮
+        when {
+            isSaved && isAlreadyExists -> {
+                OutlinedButton(
+                    onClick = {},
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    enabled = false
+                ) {
+                    Text("✅ 已更新图鉴记录")
+                }
+            }
+
+            isSaved -> {
+                OutlinedButton(
+                    onClick = {},
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    enabled = false
+                ) {
+                    Text("✅ 已收录进图鉴")
+                }
+            }
+
+            isAlreadyExists -> {
+                Button(
+                    onClick = onSave,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("🔄 更新图鉴记录")
+                }
+            }
+
+            else -> {
+                Button(
+                    onClick = onSave,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("📖 收录进图鉴")
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // 再拍一张
+        OutlinedButton(
             onClick = onRetake,
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp)
         ) {
-            Text("📷 再拍一张", fontSize = 16.sp)
+            Text("📷 再拍一张")
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -369,7 +465,7 @@ fun InfoRowIfValid(label: String, value: String) {
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
             color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.width(72.dp)
+            modifier = Modifier.width(88.dp)
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
@@ -385,12 +481,15 @@ fun InfoRowIfValid(label: String, value: String) {
 
 @Composable
 fun ConservationBadge(status: String) {
-    val (label, color) = when (status.uppercase()) {
+    // 只取前两个字符匹配标准等级
+    val normalized = status.uppercase().take(2)
+    val (label, color) = when (normalized) {
         "LC" -> "无危" to Color(0xFF4CAF50)
         "NT" -> "近危" to Color(0xFF2196F3)
         "VU" -> "易危" to Color(0xFFF9A825)
         "EN" -> "濒危" to Color(0xFFFF9800)
         "CR" -> "极危" to Color(0xFFF44336)
+        "DD" -> "数据不足" to Color(0xFF9E9E9E)
         else -> "未知" to Color.Gray
     }
     Surface(
@@ -399,7 +498,7 @@ fun ConservationBadge(status: String) {
         border = BorderStroke(1.dp, color.copy(alpha = 0.5f))
     ) {
         Text(
-            text = "$status · $label",
+            text = "${normalized.take(2)} · $label",
             fontSize = 12.sp,
             color = color,
             fontWeight = FontWeight.Bold,

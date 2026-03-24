@@ -1,26 +1,37 @@
 package com.permissionx.animalguide.ui.result
 
+import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.permissionx.animalguide.data.location.LocationHelper
 import com.permissionx.animalguide.data.repository.AnimalRepository
 import com.permissionx.animalguide.domain.model.AnimalInfo
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import kotlinx.coroutines.async
 
 sealed class ResultUiState {
     object Idle : ResultUiState()
     object RecognizingAnimal : ResultUiState()
     data class RecognizeSuccess(val results: List<Pair<String, Float>>) : ResultUiState()
     object GeneratingInfo : ResultUiState()
+
     data class InfoSuccess(
         val animalName: String,
         val confidence: Float,
         val info: AnimalInfo,
-        val otherResults: List<Pair<String, Float>> = emptyList()
+        val otherResults: List<Pair<String, Float>> = emptyList(),
+        val imageUri: Uri,
+        val isSaved: Boolean = false,
+        val isAlreadyExists: Boolean = false,
+        val latitude: Double? = null,
+        val longitude: Double? = null,
+        val isManual: Boolean = false
     ) : ResultUiState()
 
     data class Error(val message: String) : ResultUiState()
@@ -28,48 +39,174 @@ sealed class ResultUiState {
 
 @HiltViewModel
 class ResultViewModel @Inject constructor(
-    private val repository: AnimalRepository
+    private val repository: AnimalRepository,
+    private val locationHelper: LocationHelper,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<ResultUiState>(ResultUiState.Idle)
     val state = _state.asStateFlow()
 
+    // 手动标注输入框状态
+    private val _manualInputVisible = MutableStateFlow(false)
+    val manualInputVisible = _manualInputVisible.asStateFlow()
+
     fun recognizeAnimal(uri: Uri) {
         if (_state.value !is ResultUiState.Idle) return
         viewModelScope.launch {
-            // 第一步：识别动物
+
+            // 用 async 并行获取位置
+            val locationDeferred = async {
+                locationHelper.getCurrentLocation(context)
+            }
+
             _state.value = ResultUiState.RecognizingAnimal
             val recognizeResult = repository.recognizeAnimal(uri)
             recognizeResult.onFailure {
+                repository.saveHistory(
+                    animalName = "未知",
+                    imageUri = uri.toString(),
+                    confidence = 0f,
+                    isSuccess = false
+                )
                 _state.value = ResultUiState.Error(it.message ?: "识别失败")
                 return@launch
             }
 
             val results = recognizeResult.getOrNull() ?: return@launch
-            _state.value = ResultUiState.RecognizeSuccess(results)
-
-            // 第二步：用置信度最高的结果生成科普
             val topAnimal = results.first()
-            // 过滤非动物结果
+
             if (topAnimal.first == "非动物") {
+                val locationResult = locationDeferred.await()
+                repository.saveHistory(
+                    animalName = "非动物",
+                    imageUri = uri.toString(),
+                    confidence = topAnimal.second,
+                    isSuccess = false,
+                    latitude = locationResult?.latitude,
+                    longitude = locationResult?.longitude
+                )
                 _state.value = ResultUiState.Error("未识别到动物，请换一张更清晰的图片重试")
                 return@launch
             }
 
+            _state.value = ResultUiState.RecognizeSuccess(results)
             _state.value = ResultUiState.GeneratingInfo
+
             val infoResult = repository.generateAnimalInfo(topAnimal.first)
-            _state.value = infoResult.fold(
-                onSuccess = { info ->
-                    ResultUiState.InfoSuccess(
-                        animalName = topAnimal.first,
-                        confidence = topAnimal.second,
-                        info = info,
-                        otherResults = results.drop(1) // 去掉第一个，剩余的就是其他候选
-                    )
-                },
-                onFailure = {
-                    ResultUiState.Error(it.message ?: "科普内容生成失败")
-                }
+            recognizeResult.onFailure {
+                val locationResult = locationDeferred.await()
+                repository.saveHistory(
+                    animalName = "未知",
+                    imageUri = uri.toString(),
+                    confidence = 0f,
+                    isSuccess = false,
+                    latitude = locationResult?.latitude,
+                    longitude = locationResult?.longitude
+                )
+                _state.value = ResultUiState.Error(it.message ?: "识别失败")
+                return@launch
+            }
+
+            val info = infoResult.getOrNull() ?: run {
+                return@launch
+            }
+
+            // 等待位置结果
+            val locationResult = locationDeferred.await()
+
+            repository.saveHistory(
+                animalName = topAnimal.first,
+                imageUri = uri.toString(),
+                confidence = topAnimal.second,
+                isSuccess = true,
+                latitude = locationResult?.latitude,
+                longitude = locationResult?.longitude
+            )
+
+            val existing = repository.getAnimalByName(topAnimal.first)
+
+            _state.value = ResultUiState.InfoSuccess(
+                animalName = topAnimal.first,
+                confidence = topAnimal.second,
+                info = info,
+                otherResults = results.drop(1),
+                imageUri = uri,
+                isAlreadyExists = existing != null,
+                latitude = locationResult?.latitude,
+                longitude = locationResult?.longitude
+            )
+        }
+    }
+
+    // 收录进图鉴
+    fun saveToPokedex() {
+        val s = _state.value as? ResultUiState.InfoSuccess ?: return
+        viewModelScope.launch {
+            val alreadyExists = repository.saveToPokedex(
+                animalName = s.animalName,
+                imageUri = s.imageUri.toString(),
+                info = s.info,
+                latitude = s.latitude,
+                longitude = s.longitude,
+                isManual = s.isManual
+            )
+            _state.value = s.copy(
+                isSaved = true,
+                isAlreadyExists = alreadyExists
+            )
+        }
+    }
+
+    // 手动标注
+    fun showManualInput() {
+        _manualInputVisible.value = true
+    }
+
+    fun hideManualInput() {
+        _manualInputVisible.value = false
+    }
+
+    fun recognizeManually(uri: Uri, animalName: String) {
+        viewModelScope.launch {
+            _manualInputVisible.value = false
+
+            // 并行获取位置
+            val locationDeferred = async {
+                locationHelper.getCurrentLocation(context)
+            }
+
+            _state.value = ResultUiState.GeneratingInfo
+            val infoResult = repository.generateAnimalInfo(animalName)
+            infoResult.onFailure {
+                _state.value = ResultUiState.Error(it.message ?: "科普内容生成失败")
+                return@launch
+            }
+            val info = infoResult.getOrNull() ?: return@launch
+
+            // 等待位置
+            val locationResult = locationDeferred.await()
+
+            repository.saveHistory(
+                animalName = animalName,
+                imageUri = uri.toString(),
+                confidence = 1f,
+                isSuccess = true,
+                latitude = locationResult?.latitude,
+                longitude = locationResult?.longitude
+            )
+
+            val existing = repository.getAnimalByName(animalName)
+            _state.value = ResultUiState.InfoSuccess(
+                animalName = animalName,
+                confidence = 1f,
+                info = info,
+                otherResults = emptyList(),
+                imageUri = uri,
+                isAlreadyExists = existing != null,
+                latitude = locationResult?.latitude,
+                longitude = locationResult?.longitude,
+                isManual = true
             )
         }
     }

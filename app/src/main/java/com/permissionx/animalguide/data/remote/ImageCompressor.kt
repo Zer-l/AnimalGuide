@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Base64
 import java.io.ByteArrayOutputStream
+import androidx.core.graphics.scale
 
 object ImageCompressor {
 
@@ -34,11 +35,6 @@ object ImageCompressor {
         val height = bitmap.height
         if (width <= maxSide && height <= maxSide) return bitmap
         val scale = maxSide.toFloat() / maxOf(width, height)
-        return Bitmap.createScaledBitmap(
-            bitmap,
-            (width * scale).toInt(),
-            (height * scale).toInt(),
-            true
-        )
+        return bitmap.scale((width * scale).toInt(), (height * scale).toInt())
     }
 }

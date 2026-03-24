@@ -117,4 +117,6 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
 
     implementation("androidx.exifinterface:exifinterface:1.3.7")
+
+    implementation("com.google.android.gms:play-services-location:21.3.0")
 }

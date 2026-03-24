@@ -59,6 +59,11 @@ fun CameraScreen(
     var showMediaGoSettings by remember { mutableStateOf(false) }
     var shouldRequestMedia by remember { mutableStateOf(false) }
 
+    var hasLocationPermission by remember { mutableStateOf(false) }
+    var showLocationRationale by remember { mutableStateOf(false) }
+    var showLocationGoSettings by remember { mutableStateOf(false) }
+    var shouldRequestLocation by remember { mutableStateOf(false) }
+
     val mediaPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         Manifest.permission.READ_MEDIA_IMAGES
     } else {
@@ -82,6 +87,8 @@ fun CameraScreen(
                 showMediaGoSettings = true
             }
         }
+        // 媒体权限处理完后申请位置权限
+        shouldRequestLocation = true
     }
 
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
@@ -105,11 +112,31 @@ fun CameraScreen(
         shouldRequestMedia = true
     }
 
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            hasLocationPermission = true
+        } else {
+            val activity = context as ComponentActivity
+            val canAsk = ActivityCompat.shouldShowRequestPermissionRationale(
+                activity, Manifest.permission.ACCESS_FINE_LOCATION
+            )
+            if (canAsk) {
+                showLocationRationale = true
+            } else {
+                showLocationGoSettings = true
+            }
+        }
+    }
+
     val galleryLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let {
-            val encoded = Uri.encode(it.toString())
+            // 复制到应用私有目录
+            val copiedUri = copyUriToCache(context, it)
+            val encoded = Uri.encode(copiedUri.toString())
             navController.navigate("result/$encoded")
         }
     }
@@ -124,6 +151,13 @@ fun CameraScreen(
         if (shouldRequestMedia) {
             mediaPermissionLauncher.launch(mediaPermission)
             shouldRequestMedia = false
+        }
+    }
+
+    LaunchedEffect(shouldRequestLocation) {
+        if (shouldRequestLocation) {
+            locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+            shouldRequestLocation = false
         }
     }
 
@@ -205,6 +239,45 @@ fun CameraScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showMediaGoSettings = false }) { Text("取消") }
+            }
+        )
+    }
+
+//    // 第一次拒绝位置权限
+//    if (showLocationRationale) {
+//        AlertDialog(
+//            onDismissRequest = {},
+//            title = { Text("需要位置权限") },
+//            text = { Text("记录发现动物的位置需要获取您的位置信息，此权限为可选项") },
+//            confirmButton = {
+//                TextButton(onClick = {
+//                    showLocationRationale = false
+//                    locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+//                }) { Text("授权") }
+//            },
+//            dismissButton = {
+//                TextButton(onClick = { showLocationRationale = false }) { Text("跳过") }
+//            }
+//        )
+//    }
+
+    // 永久拒绝位置权限
+    if (showLocationGoSettings) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("位置权限被禁止") },
+            text = { Text("如需记录发现位置，请前往设置手动开启位置权限（可选）") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showLocationGoSettings = false
+                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = Uri.fromParts("package", context.packageName, null)
+                    }
+                    context.startActivity(intent)
+                }) { Text("去设置") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLocationGoSettings = false }) { Text("跳过") }
             }
         )
     }
@@ -367,4 +440,15 @@ private fun takePhoto(
             }
         }
     )
+}
+
+private fun copyUriToCache(context: Context, uri: Uri): Uri {
+    val fileName = "gallery_${System.currentTimeMillis()}.jpg"
+    val destFile = File(context.filesDir, fileName)
+    context.contentResolver.openInputStream(uri)?.use { input ->
+        destFile.outputStream().use { output ->
+            input.copyTo(output)
+        }
+    }
+    return Uri.fromFile(destFile)
 }
