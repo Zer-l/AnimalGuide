@@ -227,4 +227,6 @@ class AnimalRepository @Inject constructor(
     suspend fun deleteAnimal(animal: AnimalEntry) {
         animalDao.deleteAnimal(animal)
     }
+
+    suspend fun getAnimalCountOnce() = animalDao.getAnimalCountOnce()
 }

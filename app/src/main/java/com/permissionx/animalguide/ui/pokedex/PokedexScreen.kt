@@ -16,6 +16,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -38,22 +39,23 @@ fun PokedexScreen(
             .fillMaxSize()
     ) {
         // 顶部标题栏
-        Box(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .height(56.dp)
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 text = "动物图鉴",
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.align(Alignment.CenterStart)
+                modifier = Modifier.weight(1f)
             )
             Text(
                 text = "已收集 $animalCount 种",
                 fontSize = 14.sp,
                 color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.align(Alignment.CenterEnd)
             )
         }
 
@@ -70,6 +72,37 @@ fun PokedexScreen(
                 trackColor = MaterialTheme.colorScheme.surfaceVariant
             )
             Spacer(modifier = Modifier.height(12.dp))
+        }
+
+        // 成就栏
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            viewModel.getAllAchievements().forEach { achievement ->
+                val unlocked = viewModel.isAchievementUnlocked(achievement.id)
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = achievement.icon,
+                        fontSize = 28.sp,
+                        color = if (unlocked) Color.Unspecified
+                        else Color.Gray.copy(alpha = 0.3f)
+                    )
+                    Text(
+                        text = if (unlocked) achievement.name
+                        else "${animalCount}/${achievement.requiredCount}",
+                        fontSize = 9.sp,
+                        color = if (unlocked) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
         }
 
         if (animals.isEmpty()) {

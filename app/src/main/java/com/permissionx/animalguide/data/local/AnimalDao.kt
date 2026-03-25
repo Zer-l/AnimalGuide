@@ -56,4 +56,7 @@ interface AnimalDao {
 
     @Query("UPDATE pokedex SET lastSeenAt = :time, recognizeCount = recognizeCount + 1 WHERE animalName = :name")
     suspend fun updateLastSeen(name: String, time: Long)
+
+    @Query("SELECT COUNT(*) FROM pokedex")
+    suspend fun getAnimalCountOnce(): Int
 }

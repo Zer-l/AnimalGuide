@@ -6,6 +6,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.permissionx.animalguide.data.location.LocationHelper
 import com.permissionx.animalguide.data.repository.AnimalRepository
+import com.permissionx.animalguide.domain.achievement.Achievement
+import com.permissionx.animalguide.domain.achievement.AchievementManager
 import com.permissionx.animalguide.domain.model.AnimalInfo
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -31,7 +33,8 @@ sealed class ResultUiState {
         val isAlreadyExists: Boolean = false,
         val latitude: Double? = null,
         val longitude: Double? = null,
-        val isManual: Boolean = false
+        val isManual: Boolean = false,
+        val newAchievements: List<Achievement> = emptyList()  // 新增
     ) : ResultUiState()
 
     data class Error(val message: String) : ResultUiState()
@@ -41,6 +44,7 @@ sealed class ResultUiState {
 class ResultViewModel @Inject constructor(
     private val repository: AnimalRepository,
     private val locationHelper: LocationHelper,
+    private val achievementManager: AchievementManager,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -151,9 +155,19 @@ class ResultViewModel @Inject constructor(
                 longitude = s.longitude,
                 isManual = s.isManual
             )
+
+            // 只有新增才检测成就
+            val newAchievements = if (!alreadyExists) {
+                val currentCount = repository.getAnimalCountOnce()
+                achievementManager.checkAchievements(currentCount)
+            } else {
+                emptyList()
+            }
+
             _state.value = s.copy(
                 isSaved = true,
-                isAlreadyExists = alreadyExists
+                isAlreadyExists = alreadyExists,
+                newAchievements = newAchievements
             )
         }
     }
