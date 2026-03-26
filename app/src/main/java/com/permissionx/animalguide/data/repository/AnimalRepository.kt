@@ -105,25 +105,33 @@ class AnimalRepository @Inject constructor(
                 .replace("```", "")
                 .trim()
 
-            val gson = com.google.gson.Gson()
-            val info = gson.fromJson(clean, AnimalInfo::class.java)
-            // 兜底处理 conservationStatus
-            val normalizedStatus = when {
-                info.conservationStatus.uppercase().contains("LC") -> "LC"
-                info.conservationStatus.uppercase().contains("NT") -> "NT"
-                info.conservationStatus.uppercase().contains("VU") -> "VU"
-                info.conservationStatus.uppercase().contains("EN") -> "EN"
-                info.conservationStatus.uppercase().contains("CR") -> "CR"
-                info.conservationStatus.uppercase().contains("DD") -> "DD"
-                else -> "LC"
+            // 检查是否是有效JSON
+            if (!clean.startsWith("{")) {
+                return Result.failure(Exception("未找到该动物的相关信息，请检查名称是否正确"))
             }
-            val normalizedInfo = info.copy(conservationStatus = normalizedStatus)
-            Result.success(normalizedInfo)
+
+            try {
+                val gson = com.google.gson.Gson()
+                val info = gson.fromJson(clean, AnimalInfo::class.java)
+
+                val normalizedStatus = when {
+                    info.conservationStatus.uppercase().contains("LC") -> "LC"
+                    info.conservationStatus.uppercase().contains("NT") -> "NT"
+                    info.conservationStatus.uppercase().contains("VU") -> "VU"
+                    info.conservationStatus.uppercase().contains("EN") -> "EN"
+                    info.conservationStatus.uppercase().contains("CR") -> "CR"
+                    info.conservationStatus.uppercase().contains("DD") -> "DD"
+                    else -> "LC"
+                }
+                Result.success(info.copy(conservationStatus = normalizedStatus))
+            } catch (e: Exception) {
+                Result.failure(Exception("未找到该动物的相关信息，请检查名称是否正确"))
+            }
         } catch (e: Exception) {
-            val message = when (e) {
-                is java.net.UnknownHostException -> "网络连接失败，请检查网络后重试"
-                is java.net.SocketTimeoutException -> "请求超时，请检查网络后重试"
-                else -> "科普内容生成失败：${e.message}"
+            val message = when {
+                e is java.net.UnknownHostException -> "网络连接失败，请检查网络后重试"
+                e is java.net.SocketTimeoutException -> "请求超时，请检查网络后重试"
+                else -> "科普内容生成失败，请重试"
             }
             Result.failure(Exception(message))
         }

@@ -1,7 +1,5 @@
 package com.permissionx.animalguide.ui.result
 
-import android.os.Build
-import androidx.annotation.RequiresApi
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -35,7 +33,6 @@ import com.permissionx.animalguide.domain.model.AnimalInfo
 import androidx.core.net.toUri
 import com.permissionx.animalguide.domain.achievement.Achievement
 
-@RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
 @Composable
 fun ResultScreen(
     imageUri: String,
@@ -108,7 +105,7 @@ fun ResultScreen(
         if (achievementQueue.isNotEmpty()) {
             AchievementDialog(
                 achievement = achievementQueue.first(),
-                onDismiss = { achievementQueue.removeFirst() }
+                onDismiss = { achievementQueue.removeAt(0) }
             )
         }
 

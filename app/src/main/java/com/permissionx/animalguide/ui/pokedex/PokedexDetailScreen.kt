@@ -87,7 +87,6 @@ fun FullScreenImageViewer(
                 onClick = onDismiss,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .statusBarsPadding()
                     .padding(8.dp)
                     .size(40.dp)
                     .background(Color.White.copy(alpha = 0.2f), CircleShape)

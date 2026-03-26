@@ -119,4 +119,9 @@ dependencies {
     implementation("androidx.exifinterface:exifinterface:1.3.7")
 
     implementation("com.google.android.gms:play-services-location:21.3.0")
+
+    implementation("androidx.navigation:navigation-compose:2.7.7")
+    implementation("androidx.compose.animation:animation:1.6.8")
+
+    implementation("androidx.core:core-splashscreen:1.0.1")
 }

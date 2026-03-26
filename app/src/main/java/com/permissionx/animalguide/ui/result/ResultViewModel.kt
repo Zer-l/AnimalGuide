@@ -61,7 +61,16 @@ class ResultViewModel @Inject constructor(
 
             // 用 async 并行获取位置
             val locationDeferred = async {
-                locationHelper.getCurrentLocation(context)
+                val hasPermission = androidx.core.content.ContextCompat.checkSelfPermission(
+                    context,
+                    android.Manifest.permission.ACCESS_FINE_LOCATION
+                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+                if (hasPermission) {
+                    locationHelper.getCurrentLocation(context)
+                } else {
+                    null
+                }
             }
 
             _state.value = ResultUiState.RecognizingAnimal
