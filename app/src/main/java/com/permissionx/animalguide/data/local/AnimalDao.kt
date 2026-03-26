@@ -59,4 +59,7 @@ interface AnimalDao {
 
     @Query("SELECT COUNT(*) FROM pokedex")
     suspend fun getAnimalCountOnce(): Int
+
+    @Query("SELECT * FROM pokedex WHERE imageUri = :imageUri LIMIT 1")
+    suspend fun getAnimalByImageUri(imageUri: String): AnimalEntry?
 }

@@ -1,10 +1,13 @@
 package com.permissionx.animalguide.ui.pokedex
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.permissionx.animalguide.data.local.entity.AnimalEntry
 import com.permissionx.animalguide.data.repository.AnimalRepository
-import com.permissionx.animalguide.domain.achievement.ALL_ACHIEVEMENTS
 import com.permissionx.animalguide.domain.achievement.AchievementManager
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
@@ -12,9 +15,38 @@ class PokedexViewModel @Inject constructor(
     private val repository: AnimalRepository,
     private val achievementManager: AchievementManager
 ) : ViewModel() {
-    val animals = repository.getAllAnimals()
+
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery = _searchQuery.asStateFlow()
+
+    // 搜索过滤后的列表
+    val animals: StateFlow<List<AnimalEntry>> = combine(
+        repository.getAllAnimals(),
+        _searchQuery
+    ) { list, query ->
+        if (query.isBlank()) list
+        else list.filter { it.animalName.contains(query, ignoreCase = true) }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
+
     val animalCount = repository.getAnimalCount()
 
-    fun getAllAchievements() = ALL_ACHIEVEMENTS
+    fun setSearchQuery(query: String) {
+        _searchQuery.value = query
+    }
+
+    fun clearSearch() {
+        _searchQuery.value = ""
+    }
+
     fun isAchievementUnlocked(id: String) = achievementManager.isUnlocked(id)
+
+    fun deleteAnimal(animal: AnimalEntry) {
+        viewModelScope.launch {
+            repository.deleteAnimalWithPhotos(animal)
+        }
+    }
 }

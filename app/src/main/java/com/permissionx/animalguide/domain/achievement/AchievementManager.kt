@@ -4,6 +4,7 @@ import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
+import androidx.core.content.edit
 
 data class Achievement(
     val id: String,
@@ -43,10 +44,7 @@ class AchievementManager @Inject constructor(
     }
 
     private fun unlock(achievementId: String) {
-        prefs.edit().putBoolean(achievementId, true).apply()
+        prefs.edit { putBoolean(achievementId, true) }
     }
 
-    fun getUnlockedCount(): Int {
-        return ALL_ACHIEVEMENTS.count { isUnlocked(it.id) }
-    }
 }

@@ -66,8 +66,7 @@ class LocationHelper @Inject constructor() {
                 val address = getAddress(context, it.latitude, it.longitude)
                 LocationResult(it.latitude, it.longitude, address)
             }
-        } catch (e: Exception) {
-            android.util.Log.e("LocationHelper", "异常: ${e.message}")
+        } catch (_: Exception) {
             null
         }
     }
@@ -102,8 +101,7 @@ class LocationHelper @Inject constructor() {
                 val addresses = geocoder.getFromLocation(latitude, longitude, 1)
                 addresses?.firstOrNull()?.let { formatAddress(it) } ?: ""
             }
-        } catch (e: Exception) {
-            android.util.Log.e("LocationHelper", "地址解析失败: ${e.message}")
+        } catch (_: Exception) {
             ""
         }
     }

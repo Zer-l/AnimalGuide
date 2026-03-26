@@ -23,6 +23,8 @@ sealed class ResultUiState {
     data class RecognizeSuccess(val results: List<Pair<String, Float>>) : ResultUiState()
     object GeneratingInfo : ResultUiState()
 
+    data class GeneratingInfoRetry(val attempt: Int) : ResultUiState()  // 新增
+
     data class InfoSuccess(
         val animalName: String,
         val confidence: Float,
@@ -104,26 +106,43 @@ class ResultViewModel @Inject constructor(
             }
 
             _state.value = ResultUiState.RecognizeSuccess(results)
-            _state.value = ResultUiState.GeneratingInfo
 
-            val infoResult = repository.generateAnimalInfo(topAnimal.first)
-            recognizeResult.onFailure {
-                val locationResult = locationDeferred.await()
-                repository.saveHistory(
-                    animalName = "未知",
-                    imageUri = uri.toString(),
-                    confidence = 0f,
-                    isSuccess = false,
-                    latitude = locationResult?.latitude,
-                    longitude = locationResult?.longitude
-                )
-                _state.value = ResultUiState.Error(it.message ?: "识别失败")
+            var attempt = 0
+            var infoResult: Result<AnimalInfo>? = null
+            while (attempt < 2) {
+                if (attempt > 0) {
+                    _state.value = ResultUiState.GeneratingInfoRetry(attempt)
+                } else {
+                    _state.value = ResultUiState.GeneratingInfo
+                }
+                try {
+                    infoResult = repository.generateAnimalInfoOnce(topAnimal.first)
+                    if (infoResult.isSuccess) break
+                    if (infoResult.exceptionOrNull()?.message?.contains("超时") == true) {
+                        attempt++
+                    } else {
+                        break
+                    }
+                } catch (_: java.net.SocketTimeoutException) {
+                    attempt++
+                    if (attempt < 2) {
+                        kotlinx.coroutines.delay(2000) // 等待2秒再重试
+                    } else {
+                        infoResult = Result.failure(Exception("请求超时，请检查网络后重试"))
+                    }
+                } catch (e: Exception) {
+                    infoResult = Result.failure(e)
+                    break
+                }
+            }
+
+            val finalResult = infoResult ?: Result.failure(Exception("科普内容生成失败"))
+            finalResult.onFailure {
+                _state.value = ResultUiState.Error(it.message ?: "科普内容生成失败")
                 return@launch
             }
 
-            val info = infoResult.getOrNull() ?: run {
-                return@launch
-            }
+            val info = finalResult.getOrNull() ?: return@launch
 
             // 等待位置结果
             val locationResult = locationDeferred.await()
@@ -165,7 +184,13 @@ class ResultViewModel @Inject constructor(
                 isManual = s.isManual
             )
 
-            // 只有新增才检测成就
+            // 写入照片墙
+            repository.addAnimalPhoto(
+                animalName = s.animalName,
+                imageUri = s.imageUri.toString()
+            )
+
+            // 检测成就
             val newAchievements = if (!alreadyExists) {
                 val currentCount = repository.getAnimalCountOnce()
                 achievementManager.checkAchievements(currentCount)
@@ -194,20 +219,47 @@ class ResultViewModel @Inject constructor(
         viewModelScope.launch {
             _manualInputVisible.value = false
 
-            // 并行获取位置
             val locationDeferred = async {
                 locationHelper.getCurrentLocation(context)
             }
 
-            _state.value = ResultUiState.GeneratingInfo
-            val infoResult = repository.generateAnimalInfo(animalName)
-            infoResult.onFailure {
+            var attempt = 0
+            var infoResult: Result<AnimalInfo>? = null
+            while (attempt < 2) {
+                if (attempt > 0) {
+                    _state.value = ResultUiState.GeneratingInfoRetry(attempt)
+                } else {
+                    _state.value = ResultUiState.GeneratingInfo
+                }
+                try {
+                    infoResult = repository.generateAnimalInfoOnce(animalName)
+                    if (infoResult.isSuccess) break
+                    if (infoResult.exceptionOrNull()?.message?.contains("超时") == true) {
+                        attempt++
+                        if (attempt < 2) kotlinx.coroutines.delay(2000)
+                    } else {
+                        break
+                    }
+                } catch (_: java.net.SocketTimeoutException) {
+                    attempt++
+                    if (attempt < 2) {
+                        kotlinx.coroutines.delay(2000)
+                    } else {
+                        infoResult = Result.failure(Exception("请求超时，请检查网络后重试"))
+                    }
+                } catch (e: Exception) {
+                    infoResult = Result.failure(e)
+                    break
+                }
+            }
+
+            val finalResult = infoResult ?: Result.failure(Exception("科普内容生成失败"))
+            finalResult.onFailure {
                 _state.value = ResultUiState.Error(it.message ?: "科普内容生成失败")
                 return@launch
             }
-            val info = infoResult.getOrNull() ?: return@launch
+            val info = finalResult.getOrNull() ?: return@launch
 
-            // 等待位置
             val locationResult = locationDeferred.await()
 
             repository.saveHistory(

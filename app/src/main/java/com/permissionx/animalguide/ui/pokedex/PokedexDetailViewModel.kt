@@ -4,7 +4,9 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.permissionx.animalguide.data.local.entity.AnimalEntry
+import com.permissionx.animalguide.data.local.entity.AnimalPhoto
 import com.permissionx.animalguide.data.repository.AnimalRepository
+import com.permissionx.animalguide.domain.model.AnimalInfo
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,7 +20,9 @@ sealed class DetailUiState {
         val animal: AnimalEntry,
         val address: String = "",
         val isRefreshingInfo: Boolean = false,
-        val isEditingNote: Boolean = false
+        val isEditingNote: Boolean = false,
+        val refreshMessage: String = "",  // 新增
+        val photos: List<AnimalPhoto> = emptyList()  // 新增
     ) : DetailUiState()
 
     data class Error(val message: String) : DetailUiState()
@@ -44,10 +48,36 @@ class PokedexDetailViewModel @Inject constructor(
 
             // 异步获取地址
             if (animal.latitude != null && animal.longitude != null) {
-                val address = repository.getAddress(context, animal.latitude, animal.longitude)
-                val s = _state.value as? DetailUiState.Success ?: return@launch
-                _state.value = s.copy(address = address)
+                launch {
+                    val address = repository.getAddress(context, animal.latitude, animal.longitude)
+                    val s = _state.value as? DetailUiState.Success ?: return@launch
+                    _state.value = s.copy(address = address)
+                }
             }
+
+            // 单独协程监听照片列表变化
+            launch {
+                repository.getAnimalPhotos(animalName).collect { photos ->
+                    val s = _state.value as? DetailUiState.Success ?: return@collect
+                    _state.value = s.copy(photos = photos)
+                }
+            }
+        }
+    }
+
+    fun deletePhoto(photo: AnimalPhoto) {
+        val s = _state.value as? DetailUiState.Success ?: return
+        // 仅剩一张时提示用户
+        if (s.photos.size <= 1) {
+            _state.value = s.copy(refreshMessage = "至少保留一张照片")
+            return
+        }
+        viewModelScope.launch {
+            repository.deleteAnimalPhoto(photo, s.animal.imageUri)
+            // 只更新封面数据，photos 由 Flow 自动驱动更新
+            val updated = repository.getAnimalByName(s.animal.animalName) ?: return@launch
+            val current = _state.value as? DetailUiState.Success ?: return@launch
+            _state.value = current.copy(animal = updated)
         }
     }
 
@@ -56,18 +86,48 @@ class PokedexDetailViewModel @Inject constructor(
         val s = _state.value as? DetailUiState.Success ?: return
         viewModelScope.launch {
             _state.value = s.copy(isRefreshingInfo = true)
-            val result = repository.generateAnimalInfo(s.animal.animalName)
-            result.fold(
+
+            var attempt = 0
+            var result: Result<AnimalInfo>? = null
+            while (attempt < 2) {
+                try {
+                    result = repository.generateAnimalInfoOnce(s.animal.animalName)
+                    if (result.isSuccess) break
+                    if (result.exceptionOrNull()?.message?.contains("超时") == true) {
+                        attempt++
+                        if (attempt < 2) kotlinx.coroutines.delay(2000)
+                    } else {
+                        break
+                    }
+                } catch (_: java.net.SocketTimeoutException) {
+                    attempt++
+                    if (attempt < 2) {
+                        kotlinx.coroutines.delay(2000)
+                    } else {
+                        result = Result.failure(Exception("请求超时，请检查网络后重试"))
+                    }
+                } catch (e: Exception) {
+                    result = Result.failure(e)
+                    break
+                }
+            }
+
+            val finalResult = result ?: Result.failure(Exception("科普内容生成失败"))
+            finalResult.fold(
                 onSuccess = { info ->
                     repository.updateAnimalInfo(s.animal.animalName, info)
                     val updated = repository.getAnimalByName(s.animal.animalName)!!
                     _state.value = s.copy(
                         animal = updated,
-                        isRefreshingInfo = false
+                        isRefreshingInfo = false,
+                        refreshMessage = "科普内容已更新"
                     )
                 },
                 onFailure = {
-                    _state.value = s.copy(isRefreshingInfo = false)
+                    _state.value = s.copy(
+                        isRefreshingInfo = false,
+                        refreshMessage = it.message ?: "更新失败，请重试"
+                    )
                 }
             )
         }
@@ -95,11 +155,21 @@ class PokedexDetailViewModel @Inject constructor(
         _state.value = s.copy(isEditingNote = false)
     }
 
+    // 删除图鉴
     fun deleteAnimal(onDeleted: () -> Unit) {
         val s = _state.value as? DetailUiState.Success ?: return
         viewModelScope.launch {
-            repository.deleteAnimal(s.animal)
+            repository.deleteAnimalWithPhotos(s.animal)
             onDeleted()
+        }
+    }
+
+    fun setCoverPhoto(photo: AnimalPhoto) {
+        val s = _state.value as? DetailUiState.Success ?: return
+        viewModelScope.launch {
+            repository.setCoverPhoto(s.animal.animalName, photo.imageUri)
+            val updated = repository.getAnimalByName(s.animal.animalName) ?: return@launch
+            _state.value = s.copy(animal = updated)
         }
     }
 }

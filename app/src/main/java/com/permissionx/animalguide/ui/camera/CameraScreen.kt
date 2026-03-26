@@ -38,7 +38,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.app.ActivityCompat
-import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import androidx.compose.foundation.Canvas
 import androidx.core.content.ContextCompat
@@ -50,7 +49,6 @@ import java.util.concurrent.Executor
 @Composable
 fun CameraScreen(
     navController: NavController,
-    viewModel: CameraViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -294,9 +292,10 @@ fun CameraScreen(
                         }
                     )
 
-                    previewView.setOnTouchListener { _, event ->
+                    previewView.setOnTouchListener { view, event ->
                         scaleGestureDetector.onTouchEvent(event)
                         if (event.action == android.view.MotionEvent.ACTION_UP) {
+                            view.performClick()
                             val factory = previewView.meteringPointFactory
                             val point = factory.createPoint(event.x, event.y)
                             val action = androidx.camera.core.FocusMeteringAction.Builder(point)

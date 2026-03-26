@@ -39,6 +39,14 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
+import com.permissionx.animalguide.data.local.entity.AnimalPhoto
+import coil.request.ImageRequest
 
 @Composable
 fun FullScreenImageViewer(
@@ -138,7 +146,9 @@ fun PokedexDetailScreen(
                     viewModel.deleteAnimal {
                         navController.popBackStack()
                     }
-                }
+                },
+                onDeletePhoto = { photo -> viewModel.deletePhoto(photo) },  // 新增
+                onSetCover = { photo -> viewModel.setCoverPhoto(photo) }  // 新增
             )
         }
     }
@@ -152,7 +162,9 @@ fun PokedexDetailContent(
     onSaveNote: (String) -> Unit,
     onStartEditNote: () -> Unit,
     onCancelEditNote: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onDeletePhoto: (AnimalPhoto) -> Unit,
+    onSetCover: (AnimalPhoto) -> Unit  // 新增
 ) {
     val animal = state.animal
     var noteText by remember(animal.note) { mutableStateOf(animal.note) }
@@ -188,296 +200,492 @@ fun PokedexDetailContent(
         )
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-    ) {
-        // 顶部图片
-        Box(
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(state.refreshMessage) {
+        if (state.refreshMessage.isNotEmpty()) {
+            snackbarHostState.showSnackbar(state.refreshMessage)
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(300.dp)
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
         ) {
-            AsyncImage(
-                model = animal.imageUri.toUri(),
-                contentDescription = animal.animalName,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clickable { showImageViewer = true }
-            )
-
-            // 顶部渐变
+            // 顶部图片
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(80.dp)
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(Color.Black.copy(alpha = 0.5f), Color.Transparent)
-                        )
-                    )
-            )
-
-            // 返回按钮
-            IconButton(
-                onClick = { navController.popBackStack() },
-                modifier = Modifier
-                    .padding(8.dp)
-                    .size(40.dp)
-                    .background(Color.Black.copy(alpha = 0.3f), CircleShape)
+                    .height(300.dp)
             ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "返回",
-                    tint = Color.White
+                AsyncImage(
+                    model = animal.imageUri.toUri(),
+                    contentDescription = animal.animalName,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clickable { showImageViewer = true }
                 )
-            }
 
-            // 删除按钮
-            IconButton(
-                onClick = { showDeleteDialog = true },
-                modifier = Modifier
-                    .padding(8.dp)
-                    .size(40.dp)
-                    .align(Alignment.TopEnd)
-                    .background(Color.Black.copy(alpha = 0.3f), CircleShape)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "删除",
-                    tint = Color.White
-                )
-            }
-
-            // 动物名称
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.BottomStart)
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.7f))
+                // 顶部渐变
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(80.dp)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(Color.Black.copy(alpha = 0.5f), Color.Transparent)
+                            )
                         )
-                    )
-                    .padding(16.dp)
-            ) {
-                Column {
-                    Text(
-                        text = animal.animalName,
-                        fontSize = 26.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                    Text(
-                        text = animal.scientificName,
-                        fontSize = 14.sp,
-                        fontStyle = FontStyle.Italic,
-                        color = Color.White.copy(alpha = 0.8f)
+                )
+
+                // 返回按钮
+                IconButton(
+                    onClick = { navController.popBackStack() },
+                    modifier = Modifier
+                        .padding(8.dp)
+                        .size(40.dp)
+                        .background(Color.Black.copy(alpha = 0.3f), CircleShape)
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "返回",
+                        tint = Color.White
                     )
                 }
+
+                // 删除按钮
+                IconButton(
+                    onClick = { showDeleteDialog = true },
+                    modifier = Modifier
+                        .padding(8.dp)
+                        .size(40.dp)
+                        .align(Alignment.TopEnd)
+                        .background(Color.Black.copy(alpha = 0.3f), CircleShape)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "删除",
+                        tint = Color.White
+                    )
+                }
+
+                // 动物名称
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.BottomStart)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.7f))
+                            )
+                        )
+                        .padding(16.dp)
+                ) {
+                    Column {
+                        Text(
+                            text = animal.animalName,
+                            fontSize = 26.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Text(
+                            text = animal.scientificName,
+                            fontSize = 14.sp,
+                            fontStyle = FontStyle.Italic,
+                            color = Color.White.copy(alpha = 0.8f)
+                        )
+                    }
+                }
+            }
+
+            // 照片墙（只有多于1张时显示）
+            if (state.photos.size > 1) {
+                PhotoGallery(
+                    photos = state.photos,
+                    coverUri = animal.imageUri,
+                    onDeletePhoto = onDeletePhoto,
+                    onSetCover = onSetCover  // 新增
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+
+            Column(modifier = Modifier.padding(16.dp)) {
+                // 濒危等级 + 识别次数
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    ConservationBadge(status = animal.conservationStatus)
+                    Spacer(modifier = Modifier.weight(1f))
+                    Text(
+                        text = "已识别 ${animal.recognizeCount} 次",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // 发现记录卡片
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = "🗺 发现记录",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        InfoRowIfValid(
+                            label = "🕐 首次发现",
+                            value = dateFormat.format(Date(animal.unlockedAt))
+                        )
+                        InfoRowIfValid(
+                            label = "🕑 最近发现",
+                            value = dateFormat.format(Date(animal.lastSeenAt))
+                        )
+                        if (state.address.isNotEmpty()) {
+                            InfoRowIfValid(
+                                label = "📍 发现地点",
+                                value = state.address
+                            )
+                        } else if (animal.latitude != null) {
+                            InfoRowIfValid(
+                                label = "📍 发现坐标",
+                                value = "${"%.4f".format(animal.latitude)}, ${"%.4f".format(animal.longitude)}"
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // 科普信息卡片
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = "📚 科普信息",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (state.isRefreshingInfo) {
+                                CircularProgressIndicator(modifier = Modifier.size(18.dp))
+                            } else {
+                                IconButton(
+                                    onClick = onRefreshInfo,
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Refresh,
+                                        contentDescription = "刷新科普内容",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        InfoRowIfValid(label = "🏕 栖息地", value = animal.habitat)
+                        InfoRowIfValid(label = "🍖 食　性", value = animal.diet)
+                        InfoRowIfValid(label = "⏳ 寿　命", value = animal.lifespan)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // 科普简介
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = "📖 简介",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "\t\t\t\t" + animal.description,
+                            fontSize = 15.sp,
+                            lineHeight = 24.sp
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // 用户备注卡片
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = "📝 我的备注",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (!state.isEditingNote) {
+                                IconButton(
+                                    onClick = onStartEditNote,
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Edit,
+                                        contentDescription = "编辑备注",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        if (state.isEditingNote) {
+                            OutlinedTextField(
+                                value = noteText,
+                                onValueChange = { noteText = it },
+                                modifier = Modifier.fillMaxWidth(),
+                                placeholder = { Text("记录你的发现...") },
+                                minLines = 3
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(
+                                    onClick = {
+                                        noteText = animal.note
+                                        onCancelEditNote()
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                ) { Text("取消") }
+                                Button(
+                                    onClick = { onSaveNote(noteText) },
+                                    modifier = Modifier.weight(1f)
+                                ) { Text("保存") }
+                            }
+                        } else {
+                            Text(
+                                text = animal.note.ifEmpty { "点击右上角编辑添加备注" },
+                                fontSize = 14.sp,
+                                color = if (animal.note.isEmpty())
+                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                else
+                                    MaterialTheme.colorScheme.onSurface,
+                                lineHeight = 22.sp
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+        }
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
+    }
+}
+
+@Composable
+fun PhotoGallery(
+    photos: List<AnimalPhoto>,
+    coverUri: String,
+    onDeletePhoto: (AnimalPhoto) -> Unit,
+    onSetCover: (AnimalPhoto) -> Unit
+) {
+    var selectedImageUri by remember { mutableStateOf<String?>(null) }
+    var photoToDelete by remember { mutableStateOf<AnimalPhoto?>(null) }
+    val isLastPhoto = photos.size <= 1
+
+    // 全屏预览
+    selectedImageUri?.let { uri ->
+        FullScreenImageViewer(
+            imageUri = uri,
+            onDismiss = { selectedImageUri = null }
+        )
+    }
+
+    // 删除确认弹窗
+    photoToDelete?.let { photo ->
+        AlertDialog(
+            onDismissRequest = { photoToDelete = null },
+            title = { Text("删除照片") },
+            text = {
+                Text(
+                    if (photo.imageUri == coverUri)
+                        "这是当前封面图，删除后将自动更换封面。确定删除吗？"
+                    else
+                        "确定要删除这张照片吗？"
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDeletePhoto(photo)
+                    photoToDelete = null
+                }) {
+                    Text("删除", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { photoToDelete = null }) { Text("取消") }
+            }
+        )
+    }
+
+    Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+        Text(
+            text = "📸 照片墙（${photos.size}张）",
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(photos, key = { it.id }) { photo ->
+                PhotoItem(
+                    photo = photo,
+                    isCover = photo.imageUri == coverUri,
+                    isLastPhoto = isLastPhoto,
+                    onClick = { selectedImageUri = photo.imageUri },
+                    onDelete = { photoToDelete = photo },
+                    onSetCover = { onSetCover(photo) }
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun PhotoItem(
+    photo: AnimalPhoto,
+    isCover: Boolean,
+    isLastPhoto: Boolean,
+    onClick: () -> Unit,
+    onDelete: () -> Unit,
+    onSetCover: () -> Unit
+) {
+    var showMenu by remember { mutableStateOf(false) }
+
+    Box(
+        modifier = Modifier
+            .size(100.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = { showMenu = true }
+            )
+    ) {
+        AsyncImage(
+            model = ImageRequest.Builder(LocalContext.current)
+                .data(photo.imageUri.toUri())
+                .size(200, 200)
+                .crossfade(true)
+                .build(),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize()
+        )
+
+        // 封面标记
+        if (isCover) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(4.dp),
+                shape = RoundedCornerShape(4.dp),
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+            ) {
+                Text(
+                    text = "封面",
+                    fontSize = 9.sp,
+                    color = Color.White,
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                )
             }
         }
 
-        Column(modifier = Modifier.padding(16.dp)) {
+        // 拍摄时间
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.BottomCenter)
+                .background(Color.Black.copy(alpha = 0.5f))
+                .padding(vertical = 2.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = SimpleDateFormat("MM-dd HH:mm", Locale.CHINA).format(Date(photo.takenAt)),
+                fontSize = 9.sp,
+                color = Color.White
+            )
+        }
 
-            // 濒危等级 + 识别次数
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                ConservationBadge(status = animal.conservationStatus)
-                Spacer(modifier = Modifier.weight(1f))
-                Text(
-                    text = "已识别 ${animal.recognizeCount} 次",
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+        // 长按菜单
+        DropdownMenu(
+            expanded = showMenu,
+            onDismissRequest = { showMenu = false }
+        ) {
+            // 不是封面才显示设为封面选项
+            if (!isCover) {
+                DropdownMenuItem(
+                    text = { Text("设为封面") },
+                    onClick = {
+                        showMenu = false
+                        onSetCover()
+                    }
                 )
             }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // 发现记录卡片
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                )
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+            DropdownMenuItem(
+                text = {
                     Text(
-                        text = "🗺 发现记录",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
+                        text = if (isLastPhoto) "不可删除（最后一张）" else "删除",
+                        color = if (isLastPhoto)
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                        else
+                            MaterialTheme.colorScheme.error
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    InfoRowIfValid(
-                        label = "🕐 首次发现",
-                        value = dateFormat.format(Date(animal.unlockedAt))
-                    )
-                    InfoRowIfValid(
-                        label = "🕑 最近发现",
-                        value = dateFormat.format(Date(animal.lastSeenAt))
-                    )
-                    if (state.address.isNotEmpty()) {
-                        InfoRowIfValid(
-                            label = "📍 发现地点",
-                            value = state.address
-                        )
-                    } else if (animal.latitude != null) {
-                        InfoRowIfValid(
-                            label = "📍 发现坐标",
-                            value = "${"%.4f".format(animal.latitude)}, ${"%.4f".format(animal.longitude)}"
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // 科普信息卡片
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                )
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = "📚 科普信息",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.weight(1f)
-                        )
-                        if (state.isRefreshingInfo) {
-                            CircularProgressIndicator(modifier = Modifier.size(18.dp))
-                        } else {
-                            IconButton(
-                                onClick = onRefreshInfo,
-                                modifier = Modifier.size(32.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Refresh,
-                                    contentDescription = "刷新科普内容",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    InfoRowIfValid(label = "🏕 栖息地", value = animal.habitat)
-                    InfoRowIfValid(label = "🍖 食　性", value = animal.diet)
-                    InfoRowIfValid(label = "⏳ 寿　命", value = animal.lifespan)
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // 科普简介
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                )
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "📖 简介",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "\t\t\t\t" + animal.description,
-                        fontSize = 15.sp,
-                        lineHeight = 24.sp
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // 用户备注卡片
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                )
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = "📝 我的备注",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.weight(1f)
-                        )
-                        if (!state.isEditingNote) {
-                            IconButton(
-                                onClick = onStartEditNote,
-                                modifier = Modifier.size(32.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Edit,
-                                    contentDescription = "编辑备注",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    if (state.isEditingNote) {
-                        OutlinedTextField(
-                            value = noteText,
-                            onValueChange = { noteText = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("记录你的发现...") },
-                            minLines = 3
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(
-                                onClick = {
-                                    noteText = animal.note
-                                    onCancelEditNote()
-                                },
-                                modifier = Modifier.weight(1f)
-                            ) { Text("取消") }
-                            Button(
-                                onClick = { onSaveNote(noteText) },
-                                modifier = Modifier.weight(1f)
-                            ) { Text("保存") }
-                        }
-                    } else {
-                        Text(
-                            text = animal.note.ifEmpty { "点击右上角编辑添加备注" },
-                            fontSize = 14.sp,
-                            color = if (animal.note.isEmpty())
-                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                            else
-                                MaterialTheme.colorScheme.onSurface,
-                            lineHeight = 22.sp
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
+                },
+                onClick = {
+                    showMenu = false
+                    if (!isLastPhoto) onDelete()
+                },
+                enabled = !isLastPhoto
+            )
         }
     }
 }

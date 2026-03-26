@@ -3,6 +3,7 @@ package com.permissionx.animalguide.di
 import android.content.Context
 import androidx.room.Room
 import com.permissionx.animalguide.data.local.AnimalDao
+import com.permissionx.animalguide.data.local.AnimalPhotoDao
 import com.permissionx.animalguide.data.local.AppDatabase
 import com.permissionx.animalguide.data.local.HistoryDao
 import dagger.Module
@@ -24,7 +25,7 @@ object DatabaseModule {
             AppDatabase::class.java,
             "animal_guide.db"
         )
-            .addMigrations(AppDatabase.MIGRATION_1_2)
+            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3)
             .build()
     }
 
@@ -38,5 +39,12 @@ object DatabaseModule {
     @Singleton
     fun provideHistoryDao(database: AppDatabase): HistoryDao {
         return database.historyDao()
+    }
+
+    @Suppress("unused")
+    @Provides
+    @Singleton
+    fun provideAnimalPhotoDao(database: AppDatabase): AnimalPhotoDao {
+        return database.animalPhotoDao()
     }
 }

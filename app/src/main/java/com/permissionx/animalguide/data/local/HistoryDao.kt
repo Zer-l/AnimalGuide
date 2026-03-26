@@ -18,4 +18,13 @@ interface HistoryDao {
 
     @Query("DELETE FROM history")
     suspend fun clearAllHistory()
+
+    @Query("SELECT * FROM history WHERE id = :id LIMIT 1")
+    suspend fun getHistoryById(id: Int): RecognizeHistory?
+
+    @Query("SELECT * FROM history")
+    suspend fun getAllHistoryOnce(): List<RecognizeHistory>
+
+    @Query("SELECT * FROM history WHERE imageUri = :imageUri LIMIT 1")
+    suspend fun getHistoryByImageUri(imageUri: String): RecognizeHistory?
 }

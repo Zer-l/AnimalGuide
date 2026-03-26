@@ -4,9 +4,9 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.*
 import androidx.navigation.compose.*
 import com.permissionx.animalguide.ui.camera.CameraScreen
+import com.permissionx.animalguide.ui.history.HistoryDetailScreen
 import com.permissionx.animalguide.ui.history.HistoryScreen
 import com.permissionx.animalguide.ui.pokedex.PokedexDetailScreen
 import com.permissionx.animalguide.ui.pokedex.PokedexScreen
@@ -25,7 +26,7 @@ sealed class BottomNavItem(
     val icon: ImageVector
 ) {
     object Camera : BottomNavItem("camera", "拍摄", Icons.Default.CameraAlt)
-    object Pokedex : BottomNavItem("pokedex", "图鉴", Icons.Default.MenuBook)
+    object Pokedex : BottomNavItem("pokedex", "图鉴", Icons.AutoMirrored.Filled.MenuBook)
     object History : BottomNavItem("history", "历史", Icons.Default.History)
 }
 
@@ -41,7 +42,9 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
     val currentRoute = navBackStackEntry?.destination?.route
 
     val showBottomBar =
-        currentRoute?.startsWith("result") == false && !currentRoute.startsWith("pokedex_detail")
+        currentRoute?.startsWith("result") == false && !currentRoute.startsWith("pokedex_detail") && !currentRoute.startsWith(
+            "history_detail"
+        )
 
     Scaffold(
         bottomBar = {
@@ -151,6 +154,35 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
                     backStackEntry.arguments?.getString("animalName") ?: return@composable
                 PokedexDetailScreen(
                     animalName = animalName,
+                    navController = navController
+                )
+            }
+
+            composable(
+                route = "history_detail/{historyId}",
+                enterTransition = {
+                    slideInHorizontally(
+                        initialOffsetX = { it },
+                        animationSpec = tween(300)
+                    ) + fadeIn(animationSpec = tween(300))
+                },
+                exitTransition = {
+                    slideOutHorizontally(
+                        targetOffsetX = { -it },
+                        animationSpec = tween(300)
+                    ) + fadeOut(animationSpec = tween(300))
+                },
+                popExitTransition = {
+                    slideOutHorizontally(
+                        targetOffsetX = { it },
+                        animationSpec = tween(300)
+                    ) + fadeOut(animationSpec = tween(300))
+                }
+            ) { backStackEntry ->
+                val historyId = backStackEntry.arguments?.getString("historyId")?.toIntOrNull()
+                    ?: return@composable
+                HistoryDetailScreen(
+                    historyId = historyId,
                     navController = navController
                 )
             }

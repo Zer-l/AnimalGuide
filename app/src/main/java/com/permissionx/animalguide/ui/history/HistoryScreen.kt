@@ -1,6 +1,5 @@
 package com.permissionx.animalguide.ui.history
 
-import android.net.Uri
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -29,6 +28,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import androidx.core.net.toUri
+import com.permissionx.animalguide.ui.common.SearchTopBar
 
 @Composable
 fun HistoryScreen(
@@ -37,6 +37,7 @@ fun HistoryScreen(
 ) {
     val historyList by viewModel.historyList.collectAsState(initial = emptyList())
     var showClearDialog by remember { mutableStateOf(false) }
+    val searchQuery by viewModel.searchQuery.collectAsState()
 
     if (showClearDialog) {
         AlertDialog(
@@ -60,29 +61,23 @@ fun HistoryScreen(
             .fillMaxSize()
     ) {
         // 顶部标题栏
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp)
-                .padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "识别历史",
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.weight(1f)
-            )
-            if (historyList.isNotEmpty()) {
-                IconButton(onClick = { showClearDialog = true }) {
-                    Icon(
-                        imageVector = Icons.Default.DeleteSweep,
-                        contentDescription = "清空历史",
-                        tint = MaterialTheme.colorScheme.error
-                    )
+        SearchTopBar(
+            title = "识别历史",
+            searchQuery = searchQuery,
+            onSearchQueryChange = { viewModel.setSearchQuery(it) },
+            onClearSearch = { viewModel.clearSearch() },
+            trailingContent = {
+                if (historyList.isNotEmpty()) {
+                    IconButton(onClick = { showClearDialog = true }) {
+                        Icon(
+                            imageVector = Icons.Default.DeleteSweep,
+                            contentDescription = "清空历史",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
                 }
             }
-        }
+        )
 
         // 统计信息
         if (historyList.isNotEmpty()) {
@@ -114,19 +109,29 @@ fun HistoryScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("📷", fontSize = 64.sp)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "还没有识别记录",
-                        fontSize = 16.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "去拍摄动物开始识别吧！",
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                    )
+                    if (searchQuery.isNotBlank()) {
+                        Text("🔍", fontSize = 64.sp)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "未找到「$searchQuery」",
+                            fontSize = 16.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Text("📷", fontSize = 64.sp)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "还没有识别记录",
+                            fontSize = 16.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "去拍摄动物开始识别吧！",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
+                    }
                 }
             }
         } else {
@@ -139,10 +144,7 @@ fun HistoryScreen(
                         history = history,
                         onDelete = { viewModel.deleteHistory(history) },
                         onClick = {
-                            if (history.isSuccess) {
-                                val encoded = Uri.encode(history.imageUri)
-                                navController.navigate("result/$encoded")
-                            }
+                            navController.navigate("history_detail/${history.id}")
                         }
                     )
                 }

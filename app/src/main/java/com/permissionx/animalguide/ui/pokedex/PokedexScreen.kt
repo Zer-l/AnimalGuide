@@ -2,7 +2,6 @@ package com.permissionx.animalguide.ui.pokedex
 
 import android.net.Uri
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -28,6 +27,9 @@ import coil.request.ImageRequest
 import com.permissionx.animalguide.data.local.entity.AnimalEntry
 import com.permissionx.animalguide.domain.achievement.ALL_ACHIEVEMENTS
 import androidx.core.net.toUri
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import com.permissionx.animalguide.ui.common.SearchTopBar
 
 @Composable
 fun PokedexScreen(
@@ -36,31 +38,26 @@ fun PokedexScreen(
 ) {
     val animals by viewModel.animals.collectAsState(initial = emptyList())
     val animalCount by viewModel.animalCount.collectAsState(initial = 0)
+    val searchQuery by viewModel.searchQuery.collectAsState()
 
     Column(
         modifier = Modifier
             .fillMaxSize()
     ) {
         // 顶部标题栏
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp)
-                .padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "动物图鉴",
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.weight(1f)
-            )
-            Text(
-                text = "已收集 $animalCount 种",
-                fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.primary
-            )
-        }
+        SearchTopBar(
+            title = "晓物",
+            searchQuery = searchQuery,
+            onSearchQueryChange = { viewModel.setSearchQuery(it) },
+            onClearSearch = { viewModel.clearSearch() },
+            trailingContent = {
+                Text(
+                    text = "已收集 $animalCount 种",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        )
 
         // 收集进度条
         LinearProgressIndicator(
@@ -153,19 +150,29 @@ fun PokedexScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("🦁", fontSize = 64.sp)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "还没有收录任何动物",
-                        fontSize = 16.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "去拍摄动物并收录进图鉴吧！",
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                    )
+                    if (searchQuery.isNotBlank()) {
+                        Text("🔍", fontSize = 64.sp)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "未找到「$searchQuery」",
+                            fontSize = 16.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Text("🦁", fontSize = 64.sp)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "还没有收录任何动物",
+                            fontSize = 16.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "去拍摄动物并收录进图鉴吧！",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
+                    }
                 }
             }
         } else {
@@ -182,6 +189,9 @@ fun PokedexScreen(
                         onClick = {
                             val encoded = Uri.encode(animal.animalName)
                             navController.navigate("pokedex_detail/$encoded")
+                        },
+                        onLongClick = {
+                            viewModel.deleteAnimal(animal)
                         }
                     )
                 }
@@ -190,15 +200,41 @@ fun PokedexScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AnimalGridItem(
     animal: AnimalEntry,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongClick: () -> Unit  // 新增
 ) {
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("删除图鉴") },
+            text = { Text("确定要从图鉴中删除「${animal.animalName}」吗？") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDeleteDialog = false
+                    onLongClick()
+                }) {
+                    Text("删除", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) { Text("取消") }
+            }
+        )
+    }
+
     Card(
         modifier = Modifier
             .aspectRatio(0.8f)
-            .clickable { onClick() },
+            .combinedClickable(
+                onClick = { onClick() },
+                onLongClick = { showDeleteDialog = true }
+            ),
         shape = RoundedCornerShape(10.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {

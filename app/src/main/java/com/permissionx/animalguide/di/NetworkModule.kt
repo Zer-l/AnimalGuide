@@ -42,12 +42,26 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideDoubaoApi(okHttpClient: OkHttpClient): DoubaoApi {
+    fun provideDoubaoApi(@DoubaoClient okHttpClient: OkHttpClient): DoubaoApi {
         return Retrofit.Builder()
             .baseUrl("https://ark.cn-beijing.volces.com/")
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(DoubaoApi::class.java)
+    }
+
+    @Provides
+    @Singleton
+    @DoubaoClient
+    fun provideDoubaoOkHttpClient(): OkHttpClient {
+        return OkHttpClient.Builder()
+            .addInterceptor(HttpLoggingInterceptor().apply {
+                level = HttpLoggingInterceptor.Level.BODY
+            })
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(15, TimeUnit.SECONDS)
+            .build()
     }
 }
