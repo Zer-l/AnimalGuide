@@ -46,7 +46,7 @@ fun PokedexScreen(
     ) {
         // 顶部标题栏
         SearchTopBar(
-            title = "晓物",
+            title = "晓物图鉴",
             searchQuery = searchQuery,
             onSearchQueryChange = { viewModel.setSearchQuery(it) },
             onClearSearch = { viewModel.clearSearch() },

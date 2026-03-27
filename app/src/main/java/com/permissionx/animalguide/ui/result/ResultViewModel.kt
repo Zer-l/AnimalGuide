@@ -101,7 +101,7 @@ class ResultViewModel @Inject constructor(
                     latitude = locationResult?.latitude,
                     longitude = locationResult?.longitude
                 )
-                _state.value = ResultUiState.Error("未识别到动物，请换一张更清晰的图片重试")
+                _state.value = ResultUiState.Error("未识别到动物，请重新试试...")
                 return@launch
             }
 
@@ -289,5 +289,58 @@ class ResultViewModel @Inject constructor(
     fun retry(uri: Uri) {
         _state.value = ResultUiState.Idle
         recognizeAnimal(uri)
+    }
+
+    fun regenerateInfo(animalName: String) {
+        val s = _state.value as? ResultUiState.InfoSuccess ?: return
+        viewModelScope.launch {
+            var attempt = 0
+            var infoResult: Result<AnimalInfo>? = null
+            while (attempt < 2) {
+                if (attempt > 0) {
+                    _state.value = ResultUiState.GeneratingInfoRetry(attempt)
+                } else {
+                    _state.value = ResultUiState.GeneratingInfo
+                }
+                try {
+                    infoResult = repository.generateAnimalInfoOnce(animalName)
+                    if (infoResult.isSuccess) break
+                    if (infoResult.exceptionOrNull()?.message?.contains("超时") == true) {
+                        attempt++
+                        if (attempt < 2) kotlinx.coroutines.delay(2000)
+                    } else {
+                        break
+                    }
+                } catch (_: java.net.SocketTimeoutException) {
+                    attempt++
+                    if (attempt < 2) {
+                        kotlinx.coroutines.delay(2000)
+                    } else {
+                        infoResult = Result.failure(Exception("请求超时，请检查网络后重试"))
+                    }
+                } catch (e: Exception) {
+                    infoResult = Result.failure(e)
+                    break
+                }
+            }
+
+            val finalResult = infoResult ?: Result.failure(Exception("科普内容生成失败"))
+            finalResult.fold(
+                onSuccess = { info ->
+                    // 用新名称和科普替换，保留原有位置、图片、置信度
+                    val existing = repository.getAnimalByName(animalName)
+                    _state.value = s.copy(
+                        animalName = animalName,
+                        info = info,
+                        otherResults = emptyList(),
+                        isSaved = false,
+                        isAlreadyExists = existing != null
+                    )
+                },
+                onFailure = {
+                    _state.value = ResultUiState.Error(it.message ?: "科普内容生成失败")
+                }
+            )
+        }
     }
 }

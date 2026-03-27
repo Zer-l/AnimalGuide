@@ -67,11 +67,6 @@ class PokedexDetailViewModel @Inject constructor(
 
     fun deletePhoto(photo: AnimalPhoto) {
         val s = _state.value as? DetailUiState.Success ?: return
-        // 仅剩一张时提示用户
-        if (s.photos.size <= 1) {
-            _state.value = s.copy(refreshMessage = "至少保留一张照片")
-            return
-        }
         viewModelScope.launch {
             repository.deleteAnimalPhoto(photo, s.animal.imageUri)
             // 只更新封面数据，photos 由 Flow 自动驱动更新

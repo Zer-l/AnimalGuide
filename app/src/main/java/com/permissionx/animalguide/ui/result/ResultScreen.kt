@@ -97,7 +97,7 @@ fun ResultScreen(
                     title = { Text("手动标注动物") },
                     text = {
                         Column {
-                            Text("请输入你认识的动物名称：", fontSize = 14.sp)
+                            Text("请输入该动物名称：", fontSize = 14.sp)
                             Spacer(modifier = Modifier.height(8.dp))
                             OutlinedTextField(
                                 value = manualAnimalName,
@@ -209,7 +209,7 @@ fun ResultScreen(
                                     )
                                 )
                             )
-                            .padding(16.dp)
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
                     ) {
                         Column {
                             Text(
@@ -268,7 +268,10 @@ fun ResultScreen(
                         },
                         onSave = { viewModel.saveToPokedex() },
                         isSaved = s.isSaved,
-                        isAlreadyExists = s.isAlreadyExists
+                        isAlreadyExists = s.isAlreadyExists,
+                        onRegenerate = { animalName ->
+                            viewModel.regenerateInfo(animalName)
+                        }
                     )
                 }
 
@@ -298,13 +301,17 @@ fun ResultScreen(
                             ) {
                                 Text("重新拍摄")
                             }
-                            Button(onClick = { viewModel.retry(uri) }) {
+                            OutlinedButton(onClick = { viewModel.retry(uri) }) {
                                 Text("重新识别")
                             }
                         }
                         Spacer(modifier = Modifier.height(12.dp))
                         TextButton(onClick = { viewModel.showManualInput() }) {
-                            Text("识别结果不满意？试试手动标注")
+                            Text(
+                                text = "识别结果不满意？试试手动进行标注",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                 }
@@ -338,12 +345,12 @@ fun AnimalInfoCard(
     onRetake: () -> Unit,
     onSave: () -> Unit,
     isSaved: Boolean,
-    isAlreadyExists: Boolean
+    isAlreadyExists: Boolean,
+    onRegenerate: (String) -> Unit  // 新增
 ) {
     var showOthers by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.padding(16.dp)) {
-
         // 置信度 + 濒危等级
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -516,7 +523,63 @@ fun AnimalInfoCard(
             Text("📷 再拍一张")
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // 重新输入入口
+        var showRegenerateDialog by remember { mutableStateOf(false) }
+        var regenerateInput by remember { mutableStateOf("") }
+
+        if (showRegenerateDialog) {
+            AlertDialog(
+                onDismissRequest = {
+                    showRegenerateDialog = false
+                    regenerateInput = ""
+                },
+                title = { Text("重新生成科普内容") },
+                text = {
+                    Column {
+                        Text("请输入正确的动物名称：", fontSize = 14.sp)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = regenerateInput,
+                            onValueChange = { regenerateInput = it },
+                            placeholder = { Text("例如：哈基米") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            if (regenerateInput.isNotBlank()) {
+                                onRegenerate(regenerateInput.trim())
+                                regenerateInput = ""
+                                showRegenerateDialog = false
+                            }
+                        }
+                    ) { Text("重新生成") }
+                },
+                dismissButton = {
+                    TextButton(onClick = {
+                        showRegenerateDialog = false
+                        regenerateInput = ""
+                    }) { Text("取消") }
+                }
+            )
+        }
+
+        TextButton(
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+            onClick = { showRegenerateDialog = true },
+            contentPadding = PaddingValues(0.dp)
+        ) {
+            Text(
+                text = "内容不对？试试输入动物名称重新生成科普内容",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
 

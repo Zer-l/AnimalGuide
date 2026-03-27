@@ -66,7 +66,7 @@ class AnimalRepository @Inject constructor(
                 ?: emptyList()
 
             if (results.isEmpty()) {
-                Result.failure(Exception("未识别到动物，请换一张更清晰的图片"))
+                Result.failure(Exception("未识别到动物，请重新试试..."))
             } else {
                 Result.success(results)
             }
@@ -82,12 +82,33 @@ class AnimalRepository @Inject constructor(
     }
 
     suspend fun generateAnimalInfoOnce(animalName: String): Result<AnimalInfo> {
+        val angles = listOf(
+            "请重点突出它最鲜为人知的冷知识和独特行为",
+            "请重点突出它的生存挑战和与人类的关系",
+            "请重点突出它的外形特征和辨识要点",
+            "请重点突出它在生态系统中的角色和有趣的生活习性",
+            "请重点突出它的繁殖行为和家庭生活"
+        )
+        val randomAngle = angles.random()
+
         val prompt = """
-        请根据动物名称"$animalName"生成详细科普内容，严格以JSON格式返回，不要返回任何其他内容，不要加markdown代码块。
-        conservationStatus字段必须且只能是以下六个值之一：LC、NT、VU、EN、CR、DD，不能包含任何其他文字。
-        如果该动物有多个亚种保护级别不同，请填写最具代表性的亚种的等级。
-        {"name":"动物中文名","scientificName":"学名","habitat":"详细的栖息地描述，包括地理分布和具体环境","diet":"详细的食性描述，包括主要食物和觅食方式","lifespan":"平均寿命及影响寿命的因素","conservationStatus":"LC或NT或VU或EN或CR或DD之一","description":"300字以内的详细科普介绍，包括外形特征、行为习性、繁殖方式等"}
-    """.trimIndent()
+    请根据动物名称"$animalName"，以轻松有趣的科普风格生成内容，就像在和朋友聊天一样自然。
+    本次描述角度：$randomAngle。
+    严格以JSON格式返回，不要返回任何其他内容，不要加markdown代码块。
+    conservationStatus字段必须且只能是：LC、NT、VU、EN、CR、DD 之一。
+    如果该动物有多个亚种保护级别不同，填写最具代表性的等级。
+    
+    JSON格式如下：
+    {
+      "name": "动物中文名",
+      "scientificName": "拉丁学名",
+      "habitat": "用一两句话描述栖息地，要有画面感",
+      "diet": "用有趣的方式描述食性",
+      "lifespan": "寿命描述，可以加对比",
+      "conservationStatus": "LC或NT或VU或EN或CR或DD之一",
+      "description": "200字左右的介绍，语气轻松自然，避免堆砌数据。"
+    }
+""".trimIndent()
 
         val response = doubaoApi.generateAnimalInfo(
             authorization = "Bearer ${BuildConfig.DOUBAO_API_KEY}",

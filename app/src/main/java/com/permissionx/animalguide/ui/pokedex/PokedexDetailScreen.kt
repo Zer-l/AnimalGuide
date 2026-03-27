@@ -282,7 +282,7 @@ fun PokedexDetailContent(
                                 colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.7f))
                             )
                         )
-                        .padding(16.dp)
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
                     Column {
                         Text(
@@ -301,6 +301,7 @@ fun PokedexDetailContent(
                 }
             }
 
+            Spacer(modifier = Modifier.height(8.dp))
             // 照片墙（只有多于1张时显示）
             if (state.photos.size > 1) {
                 PhotoGallery(
@@ -309,7 +310,6 @@ fun PokedexDetailContent(
                     onDeletePhoto = onDeletePhoto,
                     onSetCover = onSetCover  // 新增
                 )
-                Spacer(modifier = Modifier.height(16.dp))
             }
 
             Column(modifier = Modifier.padding(16.dp)) {
@@ -527,7 +527,6 @@ fun PhotoGallery(
 ) {
     var selectedImageUri by remember { mutableStateOf<String?>(null) }
     var photoToDelete by remember { mutableStateOf<AnimalPhoto?>(null) }
-    val isLastPhoto = photos.size <= 1
 
     // 全屏预览
     selectedImageUri?.let { uri ->
@@ -570,7 +569,7 @@ fun PhotoGallery(
             fontSize = 16.sp,
             fontWeight = FontWeight.Bold
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(4.dp))
 
         LazyRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -579,7 +578,6 @@ fun PhotoGallery(
                 PhotoItem(
                     photo = photo,
                     isCover = photo.imageUri == coverUri,
-                    isLastPhoto = isLastPhoto,
                     onClick = { selectedImageUri = photo.imageUri },
                     onDelete = { photoToDelete = photo },
                     onSetCover = { onSetCover(photo) }
@@ -594,7 +592,6 @@ fun PhotoGallery(
 fun PhotoItem(
     photo: AnimalPhoto,
     isCover: Boolean,
-    isLastPhoto: Boolean,
     onClick: () -> Unit,
     onDelete: () -> Unit,
     onSetCover: () -> Unit
@@ -626,9 +623,9 @@ fun PhotoItem(
             Surface(
                 modifier = Modifier
                     .align(Alignment.TopStart)
-                    .padding(4.dp),
+                    .padding(2.dp),
                 shape = RoundedCornerShape(4.dp),
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
             ) {
                 Text(
                     text = "封面",
@@ -673,18 +670,14 @@ fun PhotoItem(
             DropdownMenuItem(
                 text = {
                     Text(
-                        text = if (isLastPhoto) "不可删除（最后一张）" else "删除",
-                        color = if (isLastPhoto)
-                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
-                        else
-                            MaterialTheme.colorScheme.error
+                        text = "删除",
+                        color = MaterialTheme.colorScheme.error
                     )
                 },
                 onClick = {
                     showMenu = false
-                    if (!isLastPhoto) onDelete()
-                },
-                enabled = !isLastPhoto
+                    onDelete()
+                }
             )
         }
     }

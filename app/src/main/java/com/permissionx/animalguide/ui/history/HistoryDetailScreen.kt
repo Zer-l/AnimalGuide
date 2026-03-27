@@ -23,7 +23,6 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
-import com.permissionx.animalguide.ui.result.ConservationBadge
 import com.permissionx.animalguide.ui.result.InfoRowIfValid
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -126,7 +125,7 @@ fun HistoryDetailContent(
                                 colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.7f))
                             )
                         )
-                        .padding(16.dp)
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
                     Column {
                         Text(
@@ -205,64 +204,6 @@ fun HistoryDetailContent(
             if (animal != null) {
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // 濒危等级
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    ConservationBadge(status = animal.conservationStatus)
-                    Spacer(modifier = Modifier.weight(1f))
-                    Text(
-                        text = "已收录图鉴",
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // 基本信息
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                    )
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        InfoRowIfValid(label = "🏕 栖息地", value = animal.habitat)
-                        InfoRowIfValid(label = "🍖 食　性", value = animal.diet)
-                        InfoRowIfValid(label = "⏳ 寿　命", value = animal.lifespan)
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // 科普简介
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                    )
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = "📖 简介",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "\t\t\t\t" + animal.description,
-                            fontSize = 15.sp,
-                            lineHeight = 24.sp
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
                 // 跳转图鉴详情
                 OutlinedButton(
                     onClick = {
@@ -298,7 +239,7 @@ fun HistoryDetailContent(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = if (history.isSuccess) "重新识别后可收录" else "可以重新尝试识别",
+                            text = if (history.isSuccess) "重新识别后可收录" else "可以尝试重新识别",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                         )
