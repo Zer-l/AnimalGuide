@@ -6,7 +6,9 @@ import androidx.lifecycle.viewModelScope
 import com.permissionx.animalguide.data.local.entity.AnimalEntry
 import com.permissionx.animalguide.data.local.entity.AnimalPhoto
 import com.permissionx.animalguide.data.repository.AnimalRepository
-import com.permissionx.animalguide.domain.model.AnimalInfo
+import com.permissionx.animalguide.data.repository.PhotoRepository
+import com.permissionx.animalguide.domain.error.AppError
+import com.permissionx.animalguide.domain.usecase.GenerateAnimalInfoUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,7 +32,9 @@ sealed class DetailUiState {
 
 @HiltViewModel
 class PokedexDetailViewModel @Inject constructor(
-    private val repository: AnimalRepository,
+    private val animalRepository: AnimalRepository,
+    private val photoRepository: PhotoRepository,
+    private val generateAnimalInfoUseCase: GenerateAnimalInfoUseCase,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -39,7 +43,7 @@ class PokedexDetailViewModel @Inject constructor(
 
     fun loadAnimal(animalName: String) {
         viewModelScope.launch {
-            val animal = repository.getAnimalByName(animalName)
+            val animal = animalRepository.getAnimalByName(animalName)
             if (animal == null) {
                 _state.value = DetailUiState.Error("未找到该动物")
                 return@launch
@@ -49,7 +53,8 @@ class PokedexDetailViewModel @Inject constructor(
             // 异步获取地址
             if (animal.latitude != null && animal.longitude != null) {
                 launch {
-                    val address = repository.getAddress(context, animal.latitude, animal.longitude)
+                    val address =
+                        animalRepository.getAddress(context, animal.latitude, animal.longitude)
                     val s = _state.value as? DetailUiState.Success ?: return@launch
                     _state.value = s.copy(address = address)
                 }
@@ -57,7 +62,7 @@ class PokedexDetailViewModel @Inject constructor(
 
             // 单独协程监听照片列表变化
             launch {
-                repository.getAnimalPhotos(animalName).collect { photos ->
+                photoRepository.getAnimalPhotos(animalName).collect { photos ->
                     val s = _state.value as? DetailUiState.Success ?: return@collect
                     _state.value = s.copy(photos = photos)
                 }
@@ -68,9 +73,9 @@ class PokedexDetailViewModel @Inject constructor(
     fun deletePhoto(photo: AnimalPhoto) {
         val s = _state.value as? DetailUiState.Success ?: return
         viewModelScope.launch {
-            repository.deleteAnimalPhoto(photo, s.animal.imageUri)
+            photoRepository.deleteAnimalPhoto(photo, s.animal.imageUri)
             // 只更新封面数据，photos 由 Flow 自动驱动更新
-            val updated = repository.getAnimalByName(s.animal.animalName) ?: return@launch
+            val updated = animalRepository.getAnimalByName(s.animal.animalName) ?: return@launch
             val current = _state.value as? DetailUiState.Success ?: return@launch
             _state.value = current.copy(animal = updated)
         }
@@ -82,36 +87,11 @@ class PokedexDetailViewModel @Inject constructor(
         viewModelScope.launch {
             _state.value = s.copy(isRefreshingInfo = true)
 
-            var attempt = 0
-            var result: Result<AnimalInfo>? = null
-            while (attempt < 2) {
-                try {
-                    result = repository.generateAnimalInfoOnce(s.animal.animalName)
-                    if (result.isSuccess) break
-                    if (result.exceptionOrNull()?.message?.contains("超时") == true) {
-                        attempt++
-                        if (attempt < 2) kotlinx.coroutines.delay(2000)
-                    } else {
-                        break
-                    }
-                } catch (_: java.net.SocketTimeoutException) {
-                    attempt++
-                    if (attempt < 2) {
-                        kotlinx.coroutines.delay(2000)
-                    } else {
-                        result = Result.failure(Exception("请求超时，请检查网络后重试"))
-                    }
-                } catch (e: Exception) {
-                    result = Result.failure(e)
-                    break
-                }
-            }
-
-            val finalResult = result ?: Result.failure(Exception("科普内容生成失败"))
-            finalResult.fold(
+            val result = generateAnimalInfoUseCase(s.animal.animalName)
+            result.fold(
                 onSuccess = { info ->
-                    repository.updateAnimalInfo(s.animal.animalName, info)
-                    val updated = repository.getAnimalByName(s.animal.animalName)!!
+                    animalRepository.updateAnimalInfo(s.animal.animalName, info)
+                    val updated = animalRepository.getAnimalByName(s.animal.animalName)!!
                     _state.value = s.copy(
                         animal = updated,
                         isRefreshingInfo = false,
@@ -121,7 +101,7 @@ class PokedexDetailViewModel @Inject constructor(
                 onFailure = {
                     _state.value = s.copy(
                         isRefreshingInfo = false,
-                        refreshMessage = it.message ?: "更新失败，请重试"
+                        refreshMessage = it.message ?: AppError.UnknownError().message
                     )
                 }
             )
@@ -132,7 +112,7 @@ class PokedexDetailViewModel @Inject constructor(
     fun saveNote(note: String) {
         val s = _state.value as? DetailUiState.Success ?: return
         viewModelScope.launch {
-            repository.updateNote(s.animal.animalName, note)
+            animalRepository.updateNote(s.animal.animalName, note)
             _state.value = s.copy(
                 animal = s.animal.copy(note = note),
                 isEditingNote = false
@@ -154,7 +134,7 @@ class PokedexDetailViewModel @Inject constructor(
     fun deleteAnimal(onDeleted: () -> Unit) {
         val s = _state.value as? DetailUiState.Success ?: return
         viewModelScope.launch {
-            repository.deleteAnimalWithPhotos(s.animal)
+            animalRepository.deleteAnimalWithPhotos(s.animal)
             onDeleted()
         }
     }
@@ -162,8 +142,8 @@ class PokedexDetailViewModel @Inject constructor(
     fun setCoverPhoto(photo: AnimalPhoto) {
         val s = _state.value as? DetailUiState.Success ?: return
         viewModelScope.launch {
-            repository.setCoverPhoto(s.animal.animalName, photo.imageUri)
-            val updated = repository.getAnimalByName(s.animal.animalName) ?: return@launch
+            animalRepository.setCoverPhoto(s.animal.animalName, photo.imageUri)
+            val updated = animalRepository.getAnimalByName(s.animal.animalName) ?: return@launch
             _state.value = s.copy(animal = updated)
         }
     }
