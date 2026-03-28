@@ -1,14 +1,9 @@
 package com.permissionx.animalguide.ui.camera
 
-import android.Manifest
 import android.content.Context
-import android.content.Intent
 import android.net.Uri
-import android.os.Build
-import android.provider.Settings
 import android.view.OrientationEventListener
 import android.widget.Toast
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
@@ -37,10 +32,12 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.core.app.ActivityCompat
 import androidx.navigation.NavController
 import androidx.compose.foundation.Canvas
 import androidx.core.content.ContextCompat
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.permissionx.animalguide.ui.navigation.Routes
+import com.permissionx.animalguide.ui.permission.rememberPermissionManager
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -49,179 +46,33 @@ import java.util.concurrent.Executor
 @Composable
 fun CameraScreen(
     navController: NavController,
+    viewModel: CameraViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    val mediaPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        Manifest.permission.READ_MEDIA_IMAGES
-    } else {
-        Manifest.permission.READ_EXTERNAL_STORAGE
-    }
+    // 权限管理
+    val permissionState = rememberPermissionManager()
 
-    var hasCameraPermission by remember {
-        mutableStateOf(
-            ContextCompat.checkSelfPermission(
-                context, Manifest.permission.CAMERA
-            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-        )
-    }
-
-    var hasMediaPermission by remember {
-        mutableStateOf(
-            ContextCompat.checkSelfPermission(
-                context, mediaPermission
-            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-        )
-    }
     var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
     var camera by remember { mutableStateOf<androidx.camera.core.Camera?>(null) }
     var zoomRatio by remember { mutableFloatStateOf(1f) }
-
-    var showCameraGoSettings by remember { mutableStateOf(false) }
-    var showMediaGoSettings by remember { mutableStateOf(false) }
-    var showLocationGoSettings by remember { mutableStateOf(false) }
-    var shouldRequestMedia by remember { mutableStateOf(false) }
-    var shouldRequestLocation by remember { mutableStateOf(false) }
-
-    val locationPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (!granted) {
-            val activity = context as ComponentActivity
-            val canAsk = ActivityCompat.shouldShowRequestPermissionRationale(
-                activity, Manifest.permission.ACCESS_FINE_LOCATION
-            )
-            if (!canAsk) showLocationGoSettings = true
-        }
-    }
-
-    val mediaPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) {
-            hasMediaPermission = true
-        } else {
-            val activity = context as ComponentActivity
-            val canAsk = ActivityCompat.shouldShowRequestPermissionRationale(
-                activity, mediaPermission
-            )
-            if (!canAsk) showMediaGoSettings = true
-        }
-        shouldRequestLocation = true
-    }
-
-    val cameraPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) {
-            hasCameraPermission = true
-        } else {
-            val activity = context as ComponentActivity
-            val canAsk = ActivityCompat.shouldShowRequestPermissionRationale(
-                activity, Manifest.permission.CAMERA
-            )
-            if (!canAsk) showCameraGoSettings = true
-        }
-        shouldRequestMedia = true
-    }
 
     val galleryLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let {
             val copiedUri = copyUriToCache(context, it)
-            val encoded = Uri.encode(copiedUri.toString())
-            navController.navigate("result/$encoded")
+            viewModel.setPendingImageUri(copiedUri)
+            navController.navigate(Routes.RESULT_NO_PARAM)
         }
     }
 
-    LaunchedEffect(Unit) {
-        cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-    }
-
-    LaunchedEffect(shouldRequestMedia) {
-        if (shouldRequestMedia) {
-            mediaPermissionLauncher.launch(mediaPermission)
-            shouldRequestMedia = false
-        }
-    }
-
-    LaunchedEffect(shouldRequestLocation) {
-        if (shouldRequestLocation) {
-            locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-            shouldRequestLocation = false
-        }
-    }
-
-    // 监听缩放比例
+    // 监听缩放
     LaunchedEffect(camera) {
-        camera?.cameraInfo?.zoomState?.observeForever { state ->
+        camera?.cameraInfo?.zoomState?.observe(lifecycleOwner) { state ->
             zoomRatio = state.zoomRatio
         }
-    }
-
-    // 永久拒绝相机权限弹窗
-    if (showCameraGoSettings) {
-        AlertDialog(
-            onDismissRequest = {},
-            title = { Text("相机权限被禁止") },
-            text = { Text("请前往设置 → 应用 → AnimalGuide → 权限，手动开启相机权限") },
-            confirmButton = {
-                TextButton(onClick = {
-                    showCameraGoSettings = false
-                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                        data = Uri.fromParts("package", context.packageName, null)
-                    }
-                    context.startActivity(intent)
-                }) { Text("去设置") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showCameraGoSettings = false }) { Text("取消") }
-            }
-        )
-    }
-
-    // 永久拒绝图片权限弹窗
-    if (showMediaGoSettings) {
-        AlertDialog(
-            onDismissRequest = {},
-            title = { Text("相册权限被禁止") },
-            text = { Text("请前往设置 → 应用 → AnimalGuide → 权限，手动开启存储权限") },
-            confirmButton = {
-                TextButton(onClick = {
-                    showMediaGoSettings = false
-                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                        data = Uri.fromParts("package", context.packageName, null)
-                    }
-                    context.startActivity(intent)
-                }) { Text("去设置") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showMediaGoSettings = false }) { Text("取消") }
-            }
-        )
-    }
-
-    // 永久拒绝位置权限弹窗
-    if (showLocationGoSettings) {
-        AlertDialog(
-            onDismissRequest = {},
-            title = { Text("位置权限被禁止") },
-            text = { Text("如需记录发现位置，请前往设置手动开启位置权限（可选）") },
-            confirmButton = {
-                TextButton(onClick = {
-                    showLocationGoSettings = false
-                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                        data = Uri.fromParts("package", context.packageName, null)
-                    }
-                    context.startActivity(intent)
-                }) { Text("去设置") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showLocationGoSettings = false }) { Text("跳过") }
-            }
-        )
     }
 
     Box(
@@ -229,7 +80,7 @@ fun CameraScreen(
             .fillMaxSize()
             .background(Color.Black)
     ) {
-        if (hasCameraPermission) {
+        if (permissionState.hasCamera) {
             AndroidView(
                 factory = { ctx ->
                     val previewView = PreviewView(ctx)
@@ -267,6 +118,9 @@ fun CameraScreen(
                                 preview,
                                 capture
                             )
+                            camera?.cameraInfo?.zoomState?.observe(lifecycleOwner) { state ->
+                                zoomRatio = state.zoomRatio
+                            }
                         } catch (e: Exception) {
                             Toast.makeText(ctx, "相机启动失败: ${e.message}", Toast.LENGTH_SHORT)
                                 .show()
@@ -294,7 +148,7 @@ fun CameraScreen(
 
                     previewView.setOnTouchListener { view, event ->
                         scaleGestureDetector.onTouchEvent(event)
-                        if (event.action == android.view.MotionEvent.ACTION_UP) {
+                        if (event.pointerCount == 1 && event.action == android.view.MotionEvent.ACTION_UP) {
                             view.performClick()
                             val factory = previewView.meteringPointFactory
                             val point = factory.createPoint(event.x, event.y)
@@ -309,14 +163,14 @@ fun CameraScreen(
                 modifier = Modifier.fillMaxSize()
             )
 
-            // 取景框四角装饰
+            // 取景框
             CornerFrame(
                 modifier = Modifier
                     .size(100.dp)
                     .align(Alignment.Center)
             )
 
-            // 缩放比例显示
+            // 缩放比例
             if (zoomRatio >= 1f) {
                 Surface(
                     modifier = Modifier
@@ -324,9 +178,9 @@ fun CameraScreen(
                         .padding(bottom = 120.dp)
                         .clickable {
                             val targetZoom = when {
-                                zoomRatio < 1.5f -> 2f  // 当前约1倍，切换到2倍
-                                zoomRatio < 2.5f -> 1f  // 当前约2倍，切换到1倍
-                                else -> 1f              // 其他倍数，切换到1倍
+                                zoomRatio < 1.5f -> 2f
+                                zoomRatio < 2.5f -> 1f
+                                else -> 1f
                             }
                             camera?.cameraControl?.setZoomRatio(targetZoom)
                         },
@@ -341,17 +195,10 @@ fun CameraScreen(
                     )
                 }
             }
-
         } else {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("需要相机权限才能拍照", color = Color.White, fontSize = 16.sp)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(onClick = {
-                        cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                    }) {
-                        Text("授予权限")
-                    }
+                    Text("未授予相机权限", color = Color.White, fontSize = 16.sp)
                 }
             }
         }
@@ -374,13 +221,15 @@ fun CameraScreen(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 相册按钮
                 IconButton(
                     onClick = {
-                        if (hasMediaPermission) {
-                            galleryLauncher.launch("image/*")
-                        } else {
-                            mediaPermissionLauncher.launch(mediaPermission)
+                        if (permissionState.hasMedia) galleryLauncher.launch("image/*")
+                        else {
+                            Toast.makeText(
+                                context,
+                                "请授予相册权限",
+                                Toast.LENGTH_LONG
+                            ).show()
                         }
                     },
                     modifier = Modifier
@@ -395,23 +244,31 @@ fun CameraScreen(
                     )
                 }
 
-                // 拍照按钮
                 Box(
                     modifier = Modifier
                         .size(80.dp)
                         .clickable {
-                            takePhoto(
-                                context = context,
-                                imageCapture = imageCapture,
-                                executor = ContextCompat.getMainExecutor(context),
-                                onSuccess = { uri ->
-                                    val encoded = Uri.encode(uri.toString())
-                                    navController.navigate("result/$encoded")
-                                },
-                                onError = {
-                                    Toast.makeText(context, "拍照失败", Toast.LENGTH_SHORT).show()
-                                }
-                            )
+                            if (permissionState.hasCamera) {
+                                takePhoto(
+                                    context = context,
+                                    imageCapture = imageCapture,
+                                    executor = ContextCompat.getMainExecutor(context),
+                                    onSuccess = { uri ->
+                                        viewModel.setPendingImageUri(uri)
+                                        navController.navigate(Routes.RESULT_NO_PARAM)
+                                    },
+                                    onError = {
+                                        Toast.makeText(context, "拍照失败", Toast.LENGTH_SHORT)
+                                            .show()
+                                    }
+                                )
+                            } else {
+                                Toast.makeText(
+                                    context,
+                                    "请授予相机权限",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
                         }
                 ) {
                     Box(
@@ -481,10 +338,8 @@ private fun takePhoto(
 
     val photoFile = File(
         context.filesDir,
-        SimpleDateFormat(
-            "yyyyMMdd_HHmmss",
-            Locale.CHINA
-        ).format(System.currentTimeMillis()) + ".jpg"
+        SimpleDateFormat("yyyyMMdd_HHmmss", Locale.CHINA)
+            .format(System.currentTimeMillis()) + ".jpg"
     )
 
     val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
@@ -494,7 +349,12 @@ private fun takePhoto(
         executor,
         object : ImageCapture.OnImageSavedCallback {
             override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                onSuccess(Uri.fromFile(photoFile))
+                val uri = androidx.core.content.FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    photoFile
+                )
+                onSuccess(uri)
             }
 
             override fun onError(exception: ImageCaptureException) {
@@ -512,5 +372,9 @@ private fun copyUriToCache(context: Context, uri: Uri): Uri {
             input.copyTo(output)
         }
     }
-    return Uri.fromFile(destFile)
+    return androidx.core.content.FileProvider.getUriForFile(
+        context,
+        "${context.packageName}.fileprovider",
+        destFile
+    )
 }

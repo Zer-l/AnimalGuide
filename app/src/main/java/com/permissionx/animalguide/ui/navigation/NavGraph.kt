@@ -11,23 +11,26 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.*
 import androidx.navigation.compose.*
 import com.permissionx.animalguide.ui.camera.CameraScreen
+import com.permissionx.animalguide.ui.camera.CameraViewModel
 import com.permissionx.animalguide.ui.history.HistoryDetailScreen
 import com.permissionx.animalguide.ui.history.HistoryScreen
 import com.permissionx.animalguide.ui.pokedex.PokedexDetailScreen
 import com.permissionx.animalguide.ui.pokedex.PokedexScreen
 import com.permissionx.animalguide.ui.result.ResultScreen
+import androidx.core.net.toUri
 
 sealed class BottomNavItem(
     val route: String,
     val label: String,
     val icon: ImageVector
 ) {
-    object Camera : BottomNavItem("camera", "拍摄", Icons.Default.CameraAlt)
-    object Pokedex : BottomNavItem("pokedex", "图鉴", Icons.AutoMirrored.Filled.MenuBook)
-    object History : BottomNavItem("history", "历史", Icons.Default.History)
+    object Camera : BottomNavItem(Routes.CAMERA, "拍摄", Icons.Default.CameraAlt)
+    object Pokedex : BottomNavItem(Routes.POKEDEX, "图鉴", Icons.AutoMirrored.Filled.MenuBook)
+    object History : BottomNavItem(Routes.HISTORY, "历史", Icons.Default.History)
 }
 
 @Composable
@@ -42,9 +45,9 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
     val currentRoute = navBackStackEntry?.destination?.route
 
     val showBottomBar =
-        currentRoute?.startsWith("result") == false && !currentRoute.startsWith("pokedex_detail") && !currentRoute.startsWith(
-            "history_detail"
-        )
+        currentRoute?.startsWith(Routes.RESULT_NO_PARAM) == false && !currentRoute.startsWith(Routes.RESULT_FROM_HISTORY) && !currentRoute.startsWith(
+            Routes.POKEDEX_DETAIL
+        ) && !currentRoute.startsWith(Routes.HISTORY_DETAIL)
 
     Scaffold(
         bottomBar = {
@@ -56,7 +59,7 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
                             onClick = {
                                 if (currentRoute != item.route) {
                                     navController.navigate(item.route) {
-                                        popUpTo("camera") { saveState = true }
+                                        popUpTo(Routes.CAMERA) { saveState = true }
                                         launchSingleTop = true
                                         restoreState = true
                                     }
@@ -77,19 +80,19 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = BottomNavItem.Camera.route,
+            startDestination = Routes.CAMERA,
             modifier = Modifier.padding(innerPadding)
         ) {
             composable(
-                route = BottomNavItem.Camera.route,
+                route = Routes.CAMERA,
                 enterTransition = { fadeIn(animationSpec = tween(200)) },
                 exitTransition = { fadeOut(animationSpec = tween(200)) }
-            ) {
+            ) { entry ->
                 CameraScreen(navController = navController)
             }
 
             composable(
-                route = BottomNavItem.Pokedex.route,
+                route = Routes.POKEDEX,
                 enterTransition = { fadeIn(animationSpec = tween(200)) },
                 exitTransition = { fadeOut(animationSpec = tween(200)) }
             ) {
@@ -97,7 +100,7 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
             }
 
             composable(
-                route = BottomNavItem.History.route,
+                route = Routes.HISTORY,
                 enterTransition = { fadeIn(animationSpec = tween(200)) },
                 exitTransition = { fadeOut(animationSpec = tween(200)) }
             ) {
@@ -105,32 +108,38 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
             }
 
             composable(
-                route = "result/{imageUri}",
+                route = Routes.RESULT_NO_PARAM,
                 enterTransition = {
-                    slideInVertically(
-                        initialOffsetY = { it },
-                        animationSpec = tween(300)
-                    ) + fadeIn(animationSpec = tween(300))
+                    slideInVertically(initialOffsetY = { it }, animationSpec = tween(300)) +
+                            fadeIn(animationSpec = tween(300))
                 },
                 exitTransition = {
-                    slideOutVertically(
-                        targetOffsetY = { it },
-                        animationSpec = tween(300)
-                    ) + fadeOut(animationSpec = tween(300))
+                    slideOutVertically(targetOffsetY = { it }, animationSpec = tween(300)) +
+                            fadeOut(animationSpec = tween(300))
                 },
                 popExitTransition = {
-                    slideOutVertically(
-                        targetOffsetY = { it },
-                        animationSpec = tween(300)
-                    ) + fadeOut(animationSpec = tween(300))
+                    slideOutVertically(targetOffsetY = { it }, animationSpec = tween(300)) +
+                            fadeOut(animationSpec = tween(300))
                 }
-            ) { backStackEntry ->
-                val imageUri = backStackEntry.arguments?.getString("imageUri") ?: return@composable
-                ResultScreen(imageUri = imageUri, navController = navController)
+            ) { entry ->
+                // 从 camera 路由的 backStackEntry 获取 CameraViewModel
+                val cameraBackStackEntry = remember(entry) {
+                    navController.getBackStackEntry(Routes.CAMERA)
+                }
+                val cameraViewModel: CameraViewModel = hiltViewModel(cameraBackStackEntry)
+                val uri by cameraViewModel.pendingImageUri.collectAsState()
+
+                uri?.let {
+                    ResultScreen(
+                        imageUri = it,
+                        navController = navController,
+                        onFinished = { cameraViewModel.clearPendingImageUri() }
+                    )
+                }
             }
 
             composable(
-                route = "pokedex_detail/{animalName}",
+                route = Routes.POKEDEX_DETAIL,
                 enterTransition = {
                     slideInHorizontally(
                         initialOffsetX = { it },
@@ -159,7 +168,7 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
             }
 
             composable(
-                route = "history_detail/{historyId}",
+                route = Routes.HISTORY_DETAIL,
                 enterTransition = {
                     slideInHorizontally(
                         initialOffsetX = { it },
@@ -183,6 +192,29 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
                     ?: return@composable
                 HistoryDetailScreen(
                     historyId = historyId,
+                    navController = navController
+                )
+            }
+
+            composable(
+                route = Routes.RESULT_FROM_HISTORY,
+                enterTransition = {
+                    slideInVertically(initialOffsetY = { it }, animationSpec = tween(300)) +
+                            fadeIn(animationSpec = tween(300))
+                },
+                exitTransition = {
+                    slideOutVertically(targetOffsetY = { it }, animationSpec = tween(300)) +
+                            fadeOut(animationSpec = tween(300))
+                },
+                popExitTransition = {
+                    slideOutVertically(targetOffsetY = { it }, animationSpec = tween(300)) +
+                            fadeOut(animationSpec = tween(300))
+                }
+            ) { backStackEntry ->
+                val imageUri = backStackEntry.arguments?.getString("imageUri") ?: return@composable
+                val uri = remember { imageUri.toUri() }
+                ResultScreen(
+                    imageUri = uri,
                     navController = navController
                 )
             }

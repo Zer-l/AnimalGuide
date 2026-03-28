@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.permissionx.animalguide.data.local.entity.AnimalEntry
 import com.permissionx.animalguide.data.local.entity.RecognizeHistory
 import com.permissionx.animalguide.data.repository.AnimalRepository
+import com.permissionx.animalguide.data.repository.HistoryRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,7 +27,8 @@ sealed class HistoryDetailUiState {
 
 @HiltViewModel
 class HistoryDetailViewModel @Inject constructor(
-    private val repository: AnimalRepository,
+    private val historyRepository: HistoryRepository,
+    private val animalRepository: AnimalRepository,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -35,7 +37,7 @@ class HistoryDetailViewModel @Inject constructor(
 
     fun loadDetail(historyId: Int) {
         viewModelScope.launch {
-            val history = repository.getHistoryById(historyId)
+            val history = historyRepository.getHistoryById(historyId)
             if (history == null) {
                 _state.value = HistoryDetailUiState.Error("未找到该记录")
                 return@launch
@@ -43,7 +45,7 @@ class HistoryDetailViewModel @Inject constructor(
 
             // 查询图鉴数据
             val animal = if (history.isSuccess) {
-                repository.getAnimalByName(history.animalName)
+                animalRepository.getAnimalByName(history.animalName)
             } else null
 
             _state.value = HistoryDetailUiState.Success(
@@ -53,7 +55,8 @@ class HistoryDetailViewModel @Inject constructor(
 
             // 异步获取地址
             if (history.latitude != null && history.longitude != null) {
-                val address = repository.getAddress(context, history.latitude, history.longitude)
+                val address =
+                    animalRepository.getAddress(context, history.latitude, history.longitude)
                 val s = _state.value as? HistoryDetailUiState.Success ?: return@launch
                 _state.value = s.copy(address = address)
             }

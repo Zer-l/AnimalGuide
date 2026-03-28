@@ -12,7 +12,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class PokedexViewModel @Inject constructor(
-    private val repository: AnimalRepository,
+    private val animalRepository: AnimalRepository,
     private val achievementManager: AchievementManager
 ) : ViewModel() {
 
@@ -21,7 +21,7 @@ class PokedexViewModel @Inject constructor(
 
     // 搜索过滤后的列表
     val animals: StateFlow<List<AnimalEntry>> = combine(
-        repository.getAllAnimals(),
+        animalRepository.getAllAnimals(),
         _searchQuery
     ) { list, query ->
         if (query.isBlank()) list
@@ -32,7 +32,7 @@ class PokedexViewModel @Inject constructor(
         initialValue = emptyList()
     )
 
-    val animalCount = repository.getAnimalCount()
+    val animalCount = animalRepository.getAnimalCount()
 
     fun setSearchQuery(query: String) {
         _searchQuery.value = query
@@ -46,7 +46,7 @@ class PokedexViewModel @Inject constructor(
 
     fun deleteAnimal(animal: AnimalEntry) {
         viewModelScope.launch {
-            repository.deleteAnimalWithPhotos(animal)
+            animalRepository.deleteAnimalWithPhotos(animal)
         }
     }
 }

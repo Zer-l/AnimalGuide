@@ -6,9 +6,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.permissionx.animalguide.data.location.LocationHelper
 import com.permissionx.animalguide.data.repository.AnimalRepository
+import com.permissionx.animalguide.data.repository.HistoryRepository
 import com.permissionx.animalguide.domain.achievement.Achievement
-import com.permissionx.animalguide.domain.achievement.AchievementManager
+import com.permissionx.animalguide.domain.error.AppError
 import com.permissionx.animalguide.domain.model.AnimalInfo
+import com.permissionx.animalguide.domain.usecase.CheckAchievementUseCase
+import com.permissionx.animalguide.domain.usecase.GenerateAnimalInfoUseCase
+import com.permissionx.animalguide.domain.usecase.RecognizeAnimalUseCase
+import com.permissionx.animalguide.domain.usecase.SaveToPokedexUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -44,56 +49,55 @@ sealed class ResultUiState {
 
 @HiltViewModel
 class ResultViewModel @Inject constructor(
-    private val repository: AnimalRepository,
+    private val recognizeAnimalUseCase: RecognizeAnimalUseCase,
+    private val generateAnimalInfoUseCase: GenerateAnimalInfoUseCase,
+    private val saveToPokedexUseCase: SaveToPokedexUseCase,
+    private val checkAchievementUseCase: CheckAchievementUseCase,
+    private val historyRepository: HistoryRepository,
+    private val animalRepository: AnimalRepository,
     private val locationHelper: LocationHelper,
-    private val achievementManager: AchievementManager,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<ResultUiState>(ResultUiState.Idle)
     val state = _state.asStateFlow()
 
-    // 手动标注输入框状态
     private val _manualInputVisible = MutableStateFlow(false)
     val manualInputVisible = _manualInputVisible.asStateFlow()
 
     fun recognizeAnimal(uri: Uri) {
         if (_state.value !is ResultUiState.Idle) return
         viewModelScope.launch {
-
-            // 用 async 并行获取位置
+            // 并行获取位置
             val locationDeferred = async {
-                val hasPermission = androidx.core.content.ContextCompat.checkSelfPermission(
-                    context,
-                    android.Manifest.permission.ACCESS_FINE_LOCATION
-                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-
-                if (hasPermission) {
-                    locationHelper.getCurrentLocation(context)
-                } else {
-                    null
-                }
+                locationHelper.getCurrentLocation(context)
             }
 
+            // 第一步：识别
             _state.value = ResultUiState.RecognizingAnimal
-            val recognizeResult = repository.recognizeAnimal(uri)
+            val recognizeResult = recognizeAnimalUseCase(uri)
             recognizeResult.onFailure {
-                repository.saveHistory(
+                val locationResult = locationDeferred.await()
+                historyRepository.saveHistory(
                     animalName = "未知",
                     imageUri = uri.toString(),
                     confidence = 0f,
-                    isSuccess = false
+                    isSuccess = false,
+                    latitude = locationResult?.latitude,
+                    longitude = locationResult?.longitude
                 )
-                _state.value = ResultUiState.Error(it.message ?: "识别失败")
+                _state.value = ResultUiState.Error(
+                    it.message ?: AppError.UnknownError().message
+                )
                 return@launch
             }
-
             val results = recognizeResult.getOrNull() ?: return@launch
             val topAnimal = results.first()
 
+            // 检查非动物
             if (topAnimal.first == "非动物") {
                 val locationResult = locationDeferred.await()
-                repository.saveHistory(
+                historyRepository.saveHistory(
                     animalName = "非动物",
                     imageUri = uri.toString(),
                     confidence = topAnimal.second,
@@ -101,53 +105,27 @@ class ResultViewModel @Inject constructor(
                     latitude = locationResult?.latitude,
                     longitude = locationResult?.longitude
                 )
-                _state.value = ResultUiState.Error("未识别到动物，请重新试试...")
+                _state.value = ResultUiState.Error("未识别到动物，请换一张更清晰的图片重试")
                 return@launch
             }
 
             _state.value = ResultUiState.RecognizeSuccess(results)
 
-            var attempt = 0
-            var infoResult: Result<AnimalInfo>? = null
-            while (attempt < 2) {
-                if (attempt > 0) {
-                    _state.value = ResultUiState.GeneratingInfoRetry(attempt)
-                } else {
-                    _state.value = ResultUiState.GeneratingInfo
-                }
-                try {
-                    infoResult = repository.generateAnimalInfoOnce(topAnimal.first)
-                    if (infoResult.isSuccess) break
-                    if (infoResult.exceptionOrNull()?.message?.contains("超时") == true) {
-                        attempt++
-                    } else {
-                        break
-                    }
-                } catch (_: java.net.SocketTimeoutException) {
-                    attempt++
-                    if (attempt < 2) {
-                        kotlinx.coroutines.delay(2000) // 等待2秒再重试
-                    } else {
-                        infoResult = Result.failure(Exception("请求超时，请检查网络后重试"))
-                    }
-                } catch (e: Exception) {
-                    infoResult = Result.failure(e)
-                    break
-                }
+            // 第二步：生成科普
+            _state.value = ResultUiState.GeneratingInfo
+            val infoResult = generateAnimalInfoUseCase(topAnimal.first) { attempt ->
+                _state.value = ResultUiState.GeneratingInfoRetry(attempt)
             }
-
-            val finalResult = infoResult ?: Result.failure(Exception("科普内容生成失败"))
-            finalResult.onFailure {
-                _state.value = ResultUiState.Error(it.message ?: "科普内容生成失败")
+            infoResult.onFailure {
+                _state.value = ResultUiState.Error(it.message ?: AppError.UnknownError().message)
                 return@launch
             }
 
-            val info = finalResult.getOrNull() ?: return@launch
-
-            // 等待位置结果
+            val info = infoResult.getOrNull() ?: return@launch
             val locationResult = locationDeferred.await()
 
-            repository.saveHistory(
+            // 保存历史
+            historyRepository.saveHistory(
                 animalName = topAnimal.first,
                 imageUri = uri.toString(),
                 confidence = topAnimal.second,
@@ -156,7 +134,7 @@ class ResultViewModel @Inject constructor(
                 longitude = locationResult?.longitude
             )
 
-            val existing = repository.getAnimalByName(topAnimal.first)
+            val existing = animalRepository.getAnimalByName(topAnimal.first)
 
             _state.value = ResultUiState.InfoSuccess(
                 animalName = topAnimal.first,
@@ -171,11 +149,10 @@ class ResultViewModel @Inject constructor(
         }
     }
 
-    // 收录进图鉴
     fun saveToPokedex() {
         val s = _state.value as? ResultUiState.InfoSuccess ?: return
         viewModelScope.launch {
-            val alreadyExists = repository.saveToPokedex(
+            val result = saveToPokedexUseCase(
                 animalName = s.animalName,
                 imageUri = s.imageUri.toString(),
                 info = s.info,
@@ -184,35 +161,19 @@ class ResultViewModel @Inject constructor(
                 isManual = s.isManual
             )
 
-            // 写入照片墙
-            repository.addAnimalPhoto(
-                animalName = s.animalName,
-                imageUri = s.imageUri.toString()
-            )
-
-            // 检测成就
-            val newAchievements = if (!alreadyExists) {
-                val currentCount = repository.getAnimalCountOnce()
-                achievementManager.checkAchievements(currentCount)
+            // 只有新增才检测成就
+            val newAchievements = if (!result.isUpdate) {
+                checkAchievementUseCase()
             } else {
                 emptyList()
             }
 
             _state.value = s.copy(
                 isSaved = true,
-                isAlreadyExists = alreadyExists,
+                isAlreadyExists = result.isUpdate,
                 newAchievements = newAchievements
             )
         }
-    }
-
-    // 手动标注
-    fun showManualInput() {
-        _manualInputVisible.value = true
-    }
-
-    fun hideManualInput() {
-        _manualInputVisible.value = false
     }
 
     fun recognizeManually(uri: Uri, animalName: String) {
@@ -223,46 +184,19 @@ class ResultViewModel @Inject constructor(
                 locationHelper.getCurrentLocation(context)
             }
 
-            var attempt = 0
-            var infoResult: Result<AnimalInfo>? = null
-            while (attempt < 2) {
-                if (attempt > 0) {
-                    _state.value = ResultUiState.GeneratingInfoRetry(attempt)
-                } else {
-                    _state.value = ResultUiState.GeneratingInfo
-                }
-                try {
-                    infoResult = repository.generateAnimalInfoOnce(animalName)
-                    if (infoResult.isSuccess) break
-                    if (infoResult.exceptionOrNull()?.message?.contains("超时") == true) {
-                        attempt++
-                        if (attempt < 2) kotlinx.coroutines.delay(2000)
-                    } else {
-                        break
-                    }
-                } catch (_: java.net.SocketTimeoutException) {
-                    attempt++
-                    if (attempt < 2) {
-                        kotlinx.coroutines.delay(2000)
-                    } else {
-                        infoResult = Result.failure(Exception("请求超时，请检查网络后重试"))
-                    }
-                } catch (e: Exception) {
-                    infoResult = Result.failure(e)
-                    break
-                }
+            _state.value = ResultUiState.GeneratingInfo
+            val infoResult = generateAnimalInfoUseCase(animalName) { attempt ->
+                _state.value = ResultUiState.GeneratingInfoRetry(attempt)
             }
-
-            val finalResult = infoResult ?: Result.failure(Exception("科普内容生成失败"))
-            finalResult.onFailure {
-                _state.value = ResultUiState.Error(it.message ?: "科普内容生成失败")
+            infoResult.onFailure {
+                _state.value = ResultUiState.Error(it.message ?: AppError.UnknownError().message)
                 return@launch
             }
-            val info = finalResult.getOrNull() ?: return@launch
 
+            val info = infoResult.getOrNull() ?: return@launch
             val locationResult = locationDeferred.await()
 
-            repository.saveHistory(
+            historyRepository.saveHistory(
                 animalName = animalName,
                 imageUri = uri.toString(),
                 confidence = 1f,
@@ -271,7 +205,7 @@ class ResultViewModel @Inject constructor(
                 longitude = locationResult?.longitude
             )
 
-            val existing = repository.getAnimalByName(animalName)
+            val existing = animalRepository.getAnimalByName(animalName)
             _state.value = ResultUiState.InfoSuccess(
                 animalName = animalName,
                 confidence = 1f,
@@ -291,54 +225,28 @@ class ResultViewModel @Inject constructor(
         recognizeAnimal(uri)
     }
 
+    fun showManualInput() {
+        _manualInputVisible.value = true
+    }
+
+    fun hideManualInput() {
+        _manualInputVisible.value = false
+    }
+
     fun regenerateInfo(animalName: String) {
         val s = _state.value as? ResultUiState.InfoSuccess ?: return
         viewModelScope.launch {
-            var attempt = 0
-            var infoResult: Result<AnimalInfo>? = null
-            while (attempt < 2) {
-                if (attempt > 0) {
-                    _state.value = ResultUiState.GeneratingInfoRetry(attempt)
-                } else {
-                    _state.value = ResultUiState.GeneratingInfo
-                }
-                try {
-                    infoResult = repository.generateAnimalInfoOnce(animalName)
-                    if (infoResult.isSuccess) break
-                    if (infoResult.exceptionOrNull()?.message?.contains("超时") == true) {
-                        attempt++
-                        if (attempt < 2) kotlinx.coroutines.delay(2000)
-                    } else {
-                        break
-                    }
-                } catch (_: java.net.SocketTimeoutException) {
-                    attempt++
-                    if (attempt < 2) {
-                        kotlinx.coroutines.delay(2000)
-                    } else {
-                        infoResult = Result.failure(Exception("请求超时，请检查网络后重试"))
-                    }
-                } catch (e: Exception) {
-                    infoResult = Result.failure(e)
-                    break
-                }
+            _state.value = ResultUiState.GeneratingInfo
+            val infoResult = generateAnimalInfoUseCase(animalName) { attempt ->
+                _state.value = ResultUiState.GeneratingInfoRetry(attempt)
             }
-
-            val finalResult = infoResult ?: Result.failure(Exception("科普内容生成失败"))
-            finalResult.fold(
+            infoResult.fold(
                 onSuccess = { info ->
-                    // 用新名称和科普替换，保留原有位置、图片、置信度
-                    val existing = repository.getAnimalByName(animalName)
-                    _state.value = s.copy(
-                        animalName = animalName,
-                        info = info,
-                        otherResults = emptyList(),
-                        isSaved = false,
-                        isAlreadyExists = existing != null
-                    )
+                    _state.value = s.copy(info = info)
                 },
                 onFailure = {
-                    _state.value = ResultUiState.Error(it.message ?: "科普内容生成失败")
+                    _state.value =
+                        ResultUiState.Error(it.message ?: AppError.UnknownError().message)
                 }
             )
         }
