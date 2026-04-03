@@ -23,7 +23,7 @@ android {
         minSdk = 26
         targetSdk = 35
         versionCode = 1
-        versionName = "1.0"
+        versionName = "1.2"
 
         buildConfigField("String", "BAIDU_API_KEY", "\"${localProperties["BAIDU_API_KEY"]}\"")
         buildConfigField("String", "BAIDU_SECRET_KEY", "\"${localProperties["BAIDU_SECRET_KEY"]}\"")
@@ -33,6 +33,13 @@ android {
             "String",
             "DOUBAO_ENDPOINT_ID",
             "\"${localProperties["DOUBAO_ENDPOINT_ID"]}\""
+        )
+
+        buildConfigField("String", "CLOUDBASE_ENV_ID", "\"${localProperties["CLOUDBASE_ENV_ID"]}\"")
+        buildConfigField(
+            "String",
+            "CLOUDBASE_ACCESS_TOKEN",
+            "\"${localProperties["CLOUDBASE_ACCESS_TOKEN"]}\""
         )
     }
 
@@ -125,4 +132,10 @@ dependencies {
     implementation("androidx.compose.animation:animation:1.6.8")
 
     implementation("androidx.core:core-splashscreen:1.0.1")
+
+    // Paging3（帖子列表分页）
+    implementation("androidx.paging:paging-runtime:3.2.1")
+    implementation("androidx.paging:paging-compose:3.2.1")
+
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
 }

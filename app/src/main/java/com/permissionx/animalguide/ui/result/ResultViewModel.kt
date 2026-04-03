@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import kotlinx.coroutines.async
+import kotlinx.coroutines.withTimeoutOrNull
 
 sealed class ResultUiState {
     object Idle : ResultUiState()
@@ -70,7 +71,9 @@ class ResultViewModel @Inject constructor(
         viewModelScope.launch {
             // 并行获取位置
             val locationDeferred = async {
-                locationHelper.getCurrentLocation(context)
+                withTimeoutOrNull(3000) {
+                    locationHelper.getCurrentLocation(context)
+                }
             }
 
             // 第一步：识别
@@ -181,7 +184,9 @@ class ResultViewModel @Inject constructor(
             _manualInputVisible.value = false
 
             val locationDeferred = async {
-                locationHelper.getCurrentLocation(context)
+                withTimeoutOrNull(3000) {
+                    locationHelper.getCurrentLocation(context)
+                }
             }
 
             _state.value = ResultUiState.GeneratingInfo
