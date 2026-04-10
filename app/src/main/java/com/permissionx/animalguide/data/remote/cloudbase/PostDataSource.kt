@@ -99,7 +99,6 @@ class PostDataSource @Inject constructor(
         )
         return result.fold(
             onSuccess = { map ->
-                android.util.Log.d("PostDataSource", "创建帖子返回: $map")
                 val id = (map["data"] as? Map<*, *>)?.get("id") as? String
                 if (id != null) Result.success(id)
                 else Result.failure(Exception("发帖失败，请重试"))

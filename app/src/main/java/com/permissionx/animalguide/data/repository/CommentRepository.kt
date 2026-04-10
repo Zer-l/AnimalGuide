@@ -6,6 +6,7 @@ import com.permissionx.animalguide.data.remote.cloudbase.PostDataSource
 import com.permissionx.animalguide.data.remote.cloudbase.UserSessionManager
 import com.permissionx.animalguide.domain.model.social.Comment
 import com.permissionx.animalguide.domain.model.social.CommentStatus
+import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -16,6 +17,9 @@ class CommentRepository @Inject constructor(
     private val postDataSource: PostDataSource,
     private val userSessionManager: UserSessionManager
 ) {
+    // 防止并发操作评论计数
+    private val commentCountMutex = kotlinx.coroutines.sync.Mutex()
+
     // 获取评论列表
     suspend fun getComments(
         postId: String,
@@ -71,21 +75,21 @@ class CommentRepository @Inject constructor(
         )
         result.onFailure { return Result.failure(it) }
 
-        // 更新帖子评论数（获取最新值再+1）
-        val postResult = postDataSource.getPostById(postId)
-        val currentCommentCount = postResult.getOrNull()
-            ?.let { (it["commentCount"] as? Double)?.toInt() } ?: 0
-        postDataSource.updatePostCount(
-            postId,
-            "commentCount",
-            currentCommentCount + 1
-        )
+        kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+            commentCountMutex.withLock {
+                val postResult = postDataSource.getPostById(postId)
+                val currentCommentCount = postResult.getOrNull()
+                    ?.let { (it["commentCount"] as? Double)?.toInt() } ?: 0
+                postDataSource.updatePostCount(postId, "commentCount", currentCommentCount + 1)
+            }
 
-        // 更新父评论回复数
-        if (parentId != null) {
-            val repliesResult = commentDataSource.getReplies(parentId)
-            val currentReplyCount = repliesResult.getOrNull()?.size ?: 0
-            commentDataSource.updateCommentReplyCount(parentId, currentReplyCount)
+            if (parentId != null) {
+                commentCountMutex.withLock {
+                    val repliesResult = commentDataSource.getReplies(parentId)
+                    val currentReplyCount = repliesResult.getOrNull()?.size ?: 0
+                    commentDataSource.updateCommentReplyCount(parentId, currentReplyCount)
+                }
+            }
         }
 
         return Result.success(
@@ -104,48 +108,90 @@ class CommentRepository @Inject constructor(
         )
     }
 
-    // 删除评论
+    // 删除主评论及其所有子评论
+    suspend fun deleteCommentWithReplies(
+        commentId: String,
+        postId: String,
+        replyCount: Int
+    ): Result<Boolean> {
+        val repliesResult = commentDataSource.getReplies(commentId)
+        repliesResult.onSuccess { replies ->
+            replies.forEach { reply ->
+                val replyId = reply["_id"] as? String ?: return@forEach
+                commentDataSource.deleteComment(replyId)
+            }
+        }
+
+        val result = commentDataSource.deleteComment(commentId)
+        result.onSuccess {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                commentCountMutex.withLock {
+                    val postResult = postDataSource.getPostById(postId)
+                    val currentCount = postResult.getOrNull()
+                        ?.let { (it["commentCount"] as? Double)?.toInt() } ?: 0
+                    val actualReplyCount = repliesResult.getOrNull()?.size ?: replyCount
+                    val newCount = (currentCount - 1 - actualReplyCount).coerceAtLeast(0)
+                    postDataSource.updatePostCount(postId, "commentCount", newCount)
+                }
+            }
+        }
+        return result
+    }
+
+    // 删除单条评论（子评论）
     suspend fun deleteComment(commentId: String, postId: String): Result<Boolean> {
         val result = commentDataSource.deleteComment(commentId)
         result.onSuccess {
-            // 获取最新评论数再-1
-            val postResult = postDataSource.getPostById(postId)
-            val currentCommentCount = postResult.getOrNull()
-                ?.let { (it["commentCount"] as? Double)?.toInt() } ?: 1
-            postDataSource.updatePostCount(
-                postId,
-                "commentCount",
-                (currentCommentCount - 1).coerceAtLeast(0)
-            )
+            kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                commentCountMutex.withLock {
+                    val postResult = postDataSource.getPostById(postId)
+                    val currentCount = postResult.getOrNull()
+                        ?.let { (it["commentCount"] as? Double)?.toInt() } ?: 1
+                    postDataSource.updatePostCount(
+                        postId,
+                        "commentCount",
+                        (currentCount - 1).coerceAtLeast(0)
+                    )
+                }
+            }
         }
         return result
     }
 
     // 点赞/取消点赞评论
-    suspend fun toggleLikeComment(comment: Comment): Result<Comment> {
-        val uid = userSessionManager.currentUser.value?.uid
-            ?: return Result.failure(Exception("请先登录"))
+    private val likingCommentIds = mutableSetOf<String>()
 
-        return if (comment.isLiked) {
-            val result = likeDataSource.unlike(uid, comment.id, "COMMENT")
-            result.fold(
-                onSuccess = {
-                    val newCount = (comment.likeCount - 1).coerceAtLeast(0)
-                    commentDataSource.updateCommentLikeCount(comment.id, newCount)
-                    Result.success(comment.copy(isLiked = false, likeCount = newCount))
-                },
-                onFailure = { Result.failure(it) }
-            )
-        } else {
-            val result = likeDataSource.like(uid, comment.id, "COMMENT")
-            result.fold(
-                onSuccess = {
-                    val newCount = comment.likeCount + 1
-                    commentDataSource.updateCommentLikeCount(comment.id, newCount)
-                    Result.success(comment.copy(isLiked = true, likeCount = newCount))
-                },
-                onFailure = { Result.failure(it) }
-            )
+    suspend fun toggleLikeComment(comment: Comment): Result<Comment> {
+        if (likingCommentIds.contains(comment.id)) return Result.failure(Exception("操作中"))
+        likingCommentIds.add(comment.id)
+
+        try {
+            val uid = userSessionManager.currentUser.value?.uid
+                ?: return Result.failure(Exception("请先登录"))
+
+            return if (comment.isLiked) {
+                val result = likeDataSource.unlike(uid, comment.id, "COMMENT")
+                result.fold(
+                    onSuccess = {
+                        val newCount = (comment.likeCount - 1).coerceAtLeast(0)
+                        commentDataSource.updateCommentLikeCount(comment.id, newCount)
+                        Result.success(comment.copy(isLiked = false, likeCount = newCount))
+                    },
+                    onFailure = { Result.failure(it) }
+                )
+            } else {
+                val result = likeDataSource.like(uid, comment.id, "COMMENT")
+                result.fold(
+                    onSuccess = {
+                        val newCount = comment.likeCount + 1
+                        commentDataSource.updateCommentLikeCount(comment.id, newCount)
+                        Result.success(comment.copy(isLiked = true, likeCount = newCount))
+                    },
+                    onFailure = { Result.failure(it) }
+                )
+            }
+        } finally {
+            likingCommentIds.remove(comment.id)
         }
     }
 

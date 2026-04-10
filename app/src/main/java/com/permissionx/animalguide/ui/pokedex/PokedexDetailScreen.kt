@@ -1,5 +1,6 @@
 package com.permissionx.animalguide.ui.pokedex
 
+import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -18,6 +19,12 @@ import com.permissionx.animalguide.ui.pokedex.components.AnimalInfoSection
 import com.permissionx.animalguide.ui.pokedex.components.DiscoverySection
 import com.permissionx.animalguide.ui.pokedex.components.NoteSection
 import com.permissionx.animalguide.ui.pokedex.components.PhotoGallery
+import com.permissionx.animalguide.ui.navigation.Routes
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.ui.platform.LocalContext
+import com.permissionx.animalguide.ui.auth.LoginViewModel
 
 @Composable
 fun PokedexDetailScreen(
@@ -45,6 +52,32 @@ fun PokedexDetailScreen(
         }
 
         is DetailUiState.Success -> {
+            var showLoginDialog by remember { mutableStateOf(false) }
+
+            val loginViewModel: LoginViewModel = hiltViewModel(
+                viewModelStoreOwner = LocalContext.current as ComponentActivity
+            )
+
+            if (showLoginDialog) {
+                AlertDialog(
+                    onDismissRequest = { showLoginDialog = false },
+                    title = { Text("登录后才能分享") },
+                    text = { Text("登录后可以分享动物到社区！") },
+                    confirmButton = {
+                        Button(onClick = {
+                            showLoginDialog = false
+                            loginViewModel.resetState()
+                            navController.navigate(Routes.LOGIN)
+                        }) { Text("去登录") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showLoginDialog = false }) {
+                            Text("暂不登录")
+                        }
+                    }
+                )
+            }
+
             PokedexDetailContent(
                 state = s,
                 navController = navController,
@@ -57,8 +90,15 @@ fun PokedexDetailScreen(
                         navController.popBackStack()
                     }
                 },
-                onDeletePhoto = { photo -> viewModel.deletePhoto(photo) },  // 新增
-                onSetCover = { photo -> viewModel.setCoverPhoto(photo) }  // 新增
+                onDeletePhoto = { photo -> viewModel.deletePhoto(photo) },
+                onSetCover = { photo -> viewModel.setCoverPhoto(photo) },
+                onShareToSocial = {
+                    if (viewModel.isLoggedIn) {
+                        navController.navigate(Routes.publishWithAnimal(s.animal.animalName))
+                    } else {
+                        showLoginDialog = true
+                    }
+                }
             )
         }
     }
@@ -74,7 +114,8 @@ fun PokedexDetailContent(
     onCancelEditNote: () -> Unit,
     onDelete: () -> Unit,
     onDeletePhoto: (AnimalPhoto) -> Unit,
-    onSetCover: (AnimalPhoto) -> Unit
+    onSetCover: (AnimalPhoto) -> Unit,
+    onShareToSocial: () -> Unit
 ) {
     val animal = state.animal
     val snackbarHostState = remember { SnackbarHostState() }
@@ -152,7 +193,22 @@ fun PokedexDetailContent(
                     onSave = onSaveNote,
                     onCancel = onCancelEditNote
                 )
+                // 分享到社区
+                Spacer(modifier = Modifier.height(8.dp))
 
+                OutlinedButton(
+                    onClick = { onShareToSocial() },
+                    shape = RoundedCornerShape(20.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Share,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("分享到社区")
+                }
                 Spacer(modifier = Modifier.height(16.dp))
             }
         }

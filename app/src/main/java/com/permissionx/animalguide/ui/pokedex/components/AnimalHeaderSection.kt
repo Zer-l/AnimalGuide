@@ -63,7 +63,7 @@ fun AnimalHeaderSection(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(300.dp)
+            .aspectRatio(3f / 2f)
     ) {
         AsyncImage(
             model = animal.imageUri.toUri(),

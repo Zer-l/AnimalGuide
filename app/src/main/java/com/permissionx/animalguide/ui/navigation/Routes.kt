@@ -23,8 +23,10 @@ object Routes {
     const val SETTINGS = "settings"
     const val EDIT_PROFILE = "edit_profile"
     const val USER_PROFILE = "user_profile/{uid}"
-
     const val SET_PASSWORD = "set_password/{phone}/{verificationToken}"
+    const val FOLLOWING_LIST = "following_list/{uid}"
+    const val FOLLOWER_LIST = "follower_list/{uid}"
+    const val ABOUT = "about"
 
     // 带参数的跳转方法
     fun pokedexDetail(animalName: String) = "pokedex_detail/${Uri.encode(animalName)}"
@@ -36,4 +38,7 @@ object Routes {
     fun publishWithAnimal(animalName: String) = "publish/${Uri.encode(animalName)}"
     fun setPassword(phone: String, verificationToken: String) =
         "set_password/${Uri.encode(phone)}/${Uri.encode(verificationToken)}"
+
+    fun followingList(uid: String) = "following_list/$uid"
+    fun followerList(uid: String) = "follower_list/$uid"
 }

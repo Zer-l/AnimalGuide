@@ -4,9 +4,10 @@ data class User(
     val id: String = "",
     val nickname: String = "",
     val avatarUrl: String = "",
+    val backgroundUrl: String = "",  // 新增
     val bio: String = "",
     val phone: String = "",
-    val gender: String = "SECRET",  // 新增
+    val gender: String = "SECRET",
     val postCount: Int = 0,
     val followCount: Int = 0,
     val followerCount: Int = 0,

@@ -88,7 +88,7 @@ fun SearchTopBar(
                             Box {
                                 if (searchQuery.isEmpty()) {
                                     Text(
-                                        text = "搜索...",
+                                        text = "搜索动物...",
                                         fontSize = 15.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )

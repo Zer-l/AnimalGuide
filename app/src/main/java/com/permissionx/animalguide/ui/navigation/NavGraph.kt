@@ -31,12 +31,16 @@ import androidx.core.net.toUri
 import com.permissionx.animalguide.ui.auth.LoginScreen
 import com.permissionx.animalguide.ui.auth.LoginViewModel
 import com.permissionx.animalguide.ui.auth.SetPasswordScreen
+import com.permissionx.animalguide.ui.me.AboutScreen
 import com.permissionx.animalguide.ui.me.EditProfileScreen
 import com.permissionx.animalguide.ui.me.MeScreen
 import com.permissionx.animalguide.ui.me.SettingsScreen
 import com.permissionx.animalguide.ui.social.SocialScreen
 import com.permissionx.animalguide.ui.social.detail.PostDetailScreen
+import com.permissionx.animalguide.ui.social.follow.FollowListScreen
+import com.permissionx.animalguide.ui.social.profile.UserProfileScreen
 import com.permissionx.animalguide.ui.social.publish.PublishScreen
+import com.permissionx.animalguide.ui.social.search.SearchScreen
 
 sealed class BottomNavItem(
     val route: String,
@@ -76,6 +80,9 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
             && currentRoute != Routes.HISTORY
             && currentRoute?.startsWith(Routes.HISTORY_DETAIL) == false
             && currentRoute?.startsWith("set_password") == false
+            && currentRoute?.startsWith("following_list") == false
+            && currentRoute?.startsWith("follower_list") == false
+            && currentRoute != Routes.ABOUT
 
     Scaffold(
         bottomBar = {
@@ -260,12 +267,7 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
             }
 
             composable(route = Routes.SEARCH_SOCIAL) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("搜索功能开发中...")
-                }
+                SearchScreen(navController = navController)
             }
 
             composable(route = Routes.PUBLISH) {
@@ -284,6 +286,14 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
                 val postId = backStackEntry.arguments?.getString("postId") ?: return@composable
                 PostDetailScreen(
                     postId = postId,
+                    navController = navController
+                )
+            }
+
+            composable(route = Routes.USER_PROFILE) { backStackEntry ->
+                val uid = backStackEntry.arguments?.getString("uid") ?: return@composable
+                UserProfileScreen(
+                    uid = uid,
                     navController = navController
                 )
             }
@@ -308,6 +318,28 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
                     verificationToken = verificationToken,
                     navController = navController
                 )
+            }
+
+            composable(route = Routes.FOLLOWING_LIST) { backStackEntry ->
+                val uid = backStackEntry.arguments?.getString("uid") ?: return@composable
+                FollowListScreen(
+                    uid = uid,
+                    isFollowing = true,
+                    navController = navController
+                )
+            }
+
+            composable(route = Routes.FOLLOWER_LIST) { backStackEntry ->
+                val uid = backStackEntry.arguments?.getString("uid") ?: return@composable
+                FollowListScreen(
+                    uid = uid,
+                    isFollowing = false,
+                    navController = navController
+                )
+            }
+
+            composable(route = Routes.ABOUT) {
+                AboutScreen(navController = navController)
             }
         }
     }

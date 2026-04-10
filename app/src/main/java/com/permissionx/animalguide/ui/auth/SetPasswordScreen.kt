@@ -23,6 +23,10 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.permissionx.animalguide.ui.navigation.Routes
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.text.input.ImeAction
 
 @Composable
 fun SetPasswordScreen(
@@ -43,11 +47,18 @@ fun SetPasswordScreen(
         viewModelStoreOwner = LocalContext.current as ComponentActivity
     )
 
+    val confirmFocusRequester = remember { FocusRequester() }
+
     LaunchedEffect(state) {
         when (state) {
             is SetPasswordUiState.Success -> {
+                // 先清除登录相关页面
+                navController.popBackStack(Routes.LOGIN, inclusive = true)
+                // 再切到 ME
                 navController.navigate(Routes.ME) {
-                    popUpTo(0) { inclusive = true }
+                    popUpTo(Routes.CAMERA) { saveState = true }
+                    launchSingleTop = true
+                    restoreState = true
                 }
             }
 
@@ -103,7 +114,13 @@ fun SetPasswordScreen(
                     VisualTransformation.None
                 else
                     PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Password,
+                    imeAction = ImeAction.Next
+                ),
+                keyboardActions = KeyboardActions(
+                    onNext = { confirmFocusRequester.requestFocus() }
+                ),
                 trailingIcon = {
                     IconButton(onClick = { passwordVisible = !passwordVisible }) {
                         Icon(
@@ -126,13 +143,25 @@ fun SetPasswordScreen(
                 label = { Text("确认密码") },
                 placeholder = { Text("再次输入密码") },
                 singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(confirmFocusRequester),
                 shape = RoundedCornerShape(12.dp),
                 visualTransformation = if (confirmPasswordVisible)
                     VisualTransformation.None
                 else
                     PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Password,
+                    imeAction = ImeAction.Done
+                ),
+                keyboardActions = KeyboardActions(
+                    onDone = {
+                        if (password.length >= 8 && passwordMatch && confirmPassword.isNotEmpty()) {
+                            viewModel.setPassword(phone, verificationToken, password)
+                        }
+                    }
+                ),
                 trailingIcon = {
                     IconButton(onClick = { confirmPasswordVisible = !confirmPasswordVisible }) {
                         Icon(

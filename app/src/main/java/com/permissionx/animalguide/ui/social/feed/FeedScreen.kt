@@ -15,7 +15,11 @@ import androidx.navigation.NavController
 import com.permissionx.animalguide.ui.navigation.Routes
 import com.permissionx.animalguide.ui.social.components.PostCard
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 
+// FeedScreen 函数加注解
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FeedScreen(
     navController: NavController,
@@ -27,20 +31,16 @@ fun FeedScreen(
     val state by viewModel.state.collectAsState()
     val listState = rememberLazyListState()
 
-    // 初始化加载
     LaunchedEffect(sortByHot) {
         viewModel.init(sortByHot)
     }
 
-    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner) {
-        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                viewModel.refresh()
-            }
+    val justRefreshed = (state as? FeedUiState.Success)?.justRefreshed ?: false
+    LaunchedEffect(justRefreshed) {
+        if (justRefreshed) {
+            listState.scrollToItem(0)
+            viewModel.clearJustRefreshed()
         }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     // 滚动到底部自动加载更多
@@ -103,68 +103,72 @@ fun FeedScreen(
         }
 
         is FeedUiState.Success -> {
-            LazyColumn(
-                state = listState,
+            PullToRefreshBox(
+                isRefreshing = s.isRefreshing,
+                onRefresh = { viewModel.pullToRefresh() },
                 modifier = Modifier.fillMaxSize()
             ) {
-                items(s.posts, key = { it.id }) { post ->
-                    PostCard(
-                        post = post,
-                        onClick = {
-                            navController.navigate(Routes.postDetail(post.id))
-                        },
-                        onLike = {
-                            if (isLoggedIn) {
-                                viewModel.toggleLike(post)
-                            } else {
-                                onRequireLogin()
-                            }
-                        },
-                        onComment = {
-                            if (isLoggedIn) {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    items(s.posts, key = { it.id }) { post ->
+                        PostCard(
+                            post = post,
+                            onClick = {
                                 navController.navigate(Routes.postDetail(post.id))
-                            } else {
-                                onRequireLogin()
+                            },
+                            onLike = {
+                                if (isLoggedIn) {
+                                    val latestPost = (viewModel.state.value as? FeedUiState.Success)
+                                        ?.posts?.find { it.id == post.id } ?: post
+                                    viewModel.toggleLike(latestPost)
+                                } else onRequireLogin()
+                            },
+                            onComment = {
+                                if (isLoggedIn) navController.navigate(Routes.postDetail(post.id))
+                                else onRequireLogin()
+                            },
+                            onCollect = {
+                                if (isLoggedIn) {
+                                    val latestPost = (viewModel.state.value as? FeedUiState.Success)
+                                        ?.posts?.find { it.id == post.id } ?: post
+                                    viewModel.toggleCollect(latestPost)
+                                } else onRequireLogin()
+                            },
+                            onUserClick = { uid ->
+                                navController.navigate(Routes.userProfile(uid))
                             }
-                        },
-                        onCollect = {
-                            if (isLoggedIn) {
-                                viewModel.toggleCollect(post)
-                            } else {
-                                onRequireLogin()
-                            }
-                        }
-                    )
-                }
+                        )
+                    }
 
-                // 加载更多
-                if (s.isLoadingMore) {
-                    item {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    if (s.isLoadingMore) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                            }
                         }
                     }
-                }
 
-                // 没有更多
-                if (!s.hasMore && s.posts.isNotEmpty()) {
-                    item {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "没有更多了",
-                                fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                    if (!s.hasMore && s.posts.isNotEmpty()) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "没有更多了",
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
                 }

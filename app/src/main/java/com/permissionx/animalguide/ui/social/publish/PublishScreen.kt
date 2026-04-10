@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -30,6 +31,12 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.permissionx.animalguide.domain.model.social.PostType
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -46,7 +53,24 @@ fun PublishScreen(
     var tags by remember { mutableStateOf<List<String>>(emptyList()) }
     var tagInput by remember { mutableStateOf("") }
     var showTagInput by remember { mutableStateOf(false) }
+    var locationText by remember { mutableStateOf("") }
+    var isLoadingLocation by remember { mutableStateOf(false) }
+    var latitude by remember { mutableStateOf<Double?>(null) }
+    var longitude by remember { mutableStateOf<Double?>(null) }
+    var locationError by remember { mutableStateOf("") }
+    val context = LocalContext.current
     val postType = if (animalName.isNotBlank()) PostType.ANIMAL_SHARE else PostType.ORIGINAL
+
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            isLoadingLocation = true
+            locationError = ""
+        } else {
+            locationError = "未授予定位权限"
+        }
+    }
 
     // 发布成功后返回
     LaunchedEffect(state) {
@@ -70,7 +94,8 @@ fun PublishScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 4.dp),
+                .height(56.dp)
+                .padding(horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = { navController.popBackStack() }) {
@@ -93,7 +118,10 @@ fun PublishScreen(
                         imageUris = imageUris,
                         tags = tags,
                         type = postType,
-                        animalName = animalName
+                        animalName = animalName,
+                        location = locationText,
+                        latitude = latitude,
+                        longitude = longitude
                     )
                 },
                 enabled = state !is PublishUiState.Publishing,
@@ -119,21 +147,21 @@ fun PublishScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
-            // 动物分享标签
-            if (animalName.isNotBlank()) {
-                Surface(
-                    shape = RoundedCornerShape(20.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer
-                ) {
-                    Text(
-                        text = "🦁 分享动物：$animalName",
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-            }
+//            // 动物分享标签
+//            if (animalName.isNotBlank()) {
+//                Surface(
+//                    shape = RoundedCornerShape(20.dp),
+//                    color = MaterialTheme.colorScheme.primaryContainer
+//                ) {
+//                    Text(
+//                        text = "🦁 分享动物：$animalName",
+//                        fontSize = 13.sp,
+//                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+//                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+//                    )
+//                }
+//                Spacer(modifier = Modifier.height(12.dp))
+//            }
 
             // 标题输入
             OutlinedTextField(
@@ -174,13 +202,7 @@ fun PublishScreen(
                 columns = GridCells.Fixed(3),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.height(
-                    when {
-                        imageUris.size < 3 -> 110.dp
-                        imageUris.size < 6 -> 228.dp
-                        else -> 346.dp
-                    }
-                )
+                modifier = Modifier.heightIn(max = 360.dp)
             ) {
                 items(imageUris) { uri ->
                     Box(
@@ -276,22 +298,43 @@ fun PublishScreen(
 
                 if (tags.size < 5) {
                     if (showTagInput) {
+                        val tagFocusRequester = remember { FocusRequester() }
+
+                        LaunchedEffect(Unit) {
+                            tagFocusRequester.requestFocus()
+                        }
+
                         OutlinedTextField(
                             value = tagInput,
                             onValueChange = { if (it.length <= 10) tagInput = it },
                             placeholder = { Text("输入标签") },
                             singleLine = true,
-                            modifier = Modifier.width(120.dp),
+                            modifier = Modifier
+                                .width(160.dp)
+                                .focusRequester(tagFocusRequester),
                             shape = RoundedCornerShape(20.dp),
-                            trailingIcon = {
-                                IconButton(onClick = {
+                            keyboardOptions = KeyboardOptions(
+                                imeAction = ImeAction.Done
+                            ),
+                            keyboardActions = KeyboardActions(
+                                onDone = {
                                     if (tagInput.isNotBlank()) {
                                         tags = tags + tagInput.trim()
                                         tagInput = ""
                                     }
                                     showTagInput = false
+                                }
+                            ),
+                            trailingIcon = {
+                                IconButton(onClick = {
+                                    tagInput = ""
+                                    showTagInput = false
                                 }) {
-                                    Icon(Icons.Default.Add, contentDescription = "添加")
+                                    Icon(
+                                        Icons.Default.Close,
+                                        contentDescription = "取消",
+                                        modifier = Modifier.size(18.dp)
+                                    )
                                 }
                             }
                         )
@@ -299,6 +342,142 @@ fun PublishScreen(
                         AssistChip(
                             onClick = { showTagInput = true },
                             label = { Text("+ 添加标签") }
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            val locationPermissionLauncher = rememberLauncherForActivityResult(
+                ActivityResultContracts.RequestPermission()
+            ) { granted ->
+                if (granted) {
+                    isLoadingLocation = true
+                }
+            }
+
+            // 从图鉴分享时，自动加载图鉴图片
+            LaunchedEffect(animalName) {
+                if (animalName.isNotBlank()) {
+                    val uri = viewModel.getAnimalImageUri(animalName)
+                    if (uri != null && imageUris.isEmpty()) {
+                        imageUris = listOf(uri)
+                    }
+                }
+            }
+
+            LaunchedEffect(animalName) {
+                if (animalName.isNotBlank()) {
+                    // 自动添加图鉴图片
+                    val uri = viewModel.getAnimalImageUri(animalName)
+                    if (uri != null && imageUris.isEmpty()) {
+                        imageUris = listOf(uri)
+                    }
+                    // 自动添加动物名称为标签
+                    if (tags.isEmpty()) {
+                        tags = listOf(animalName)
+                    }
+                }
+            }
+
+            // 获取定位
+            LaunchedEffect(isLoadingLocation) {
+                if (isLoadingLocation) {
+                    locationError = ""
+                    val (name, lat, lng) = viewModel.getLocationForPublish(context)
+                    if (name != null && lat != null) {
+                        locationText = name
+                        latitude = lat
+                        longitude = lng
+                    } else {
+                        locationError = "定位失败，请检查定位服务后重试"
+                    }
+                    isLoadingLocation = false
+                }
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable {
+                        if (locationText.isEmpty() && !isLoadingLocation) {
+                            val hasPermission = androidx.core.content.ContextCompat
+                                .checkSelfPermission(
+                                    context,
+                                    android.Manifest.permission.ACCESS_COARSE_LOCATION
+                                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                            if (hasPermission) {
+                                isLoadingLocation = true
+                                locationError = ""
+                            } else {
+                                locationPermissionLauncher.launch(
+                                    android.Manifest.permission.ACCESS_COARSE_LOCATION
+                                )
+                            }
+                        } else if (locationText.isNotEmpty()) {
+                            locationText = ""
+                            latitude = null
+                            longitude = null
+                            locationError = ""
+                        }
+                    }
+                    .padding(vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.LocationOn,
+                    contentDescription = null,
+                    tint = if (locationText.isNotEmpty())
+                        MaterialTheme.colorScheme.primary
+                    else
+                        MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                when {
+                    isLoadingLocation -> {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "定位中...",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    locationText.isNotEmpty() -> {
+                        Text(
+                            text = locationText,
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "清除地点",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+
+                    locationError.isNotEmpty() -> {
+                        Text(
+                            text = locationError,
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+
+                    else -> {
+                        Text(
+                            text = "添加地点",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }

@@ -3,6 +3,7 @@ package com.permissionx.animalguide.ui.social.feed
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.permissionx.animalguide.data.repository.PostRepository
+import com.permissionx.animalguide.data.repository.PostUpdateEvent
 import com.permissionx.animalguide.domain.model.social.Post
 import com.permissionx.animalguide.domain.usecase.social.post.GetFeedUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -14,7 +15,8 @@ import javax.inject.Inject
 @HiltViewModel
 class FeedViewModel @Inject constructor(
     private val getFeedUseCase: GetFeedUseCase,
-    private val postRepository: PostRepository
+    private val postRepository: PostRepository,
+    private val postUpdateEvent: PostUpdateEvent
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<FeedUiState>(FeedUiState.Loading)
@@ -24,9 +26,33 @@ class FeedViewModel @Inject constructor(
     private var sortByHot = false
     private val pageSize = 10
 
+    private var initialized = false
+
+    init {
+        viewModelScope.launch {
+            postUpdateEvent.updates.collect { updatedPost ->
+                val s = _state.value as? FeedUiState.Success ?: return@collect
+                _state.value = s.copy(
+                    posts = s.posts.map {
+                        if (it.id == updatedPost.id) it.copy(
+                            likeCount = updatedPost.likeCount,
+                            commentCount = updatedPost.commentCount,
+                            collectCount = updatedPost.collectCount,
+                            isLiked = updatedPost.isLiked,
+                            isCollected = updatedPost.isCollected
+                        ) else it
+                    }
+                )
+            }
+        }
+    }
+
     fun init(sortByHot: Boolean) {
         this.sortByHot = sortByHot
-        loadFirstPage()
+        if (!initialized) {
+            initialized = true
+            loadFirstPage()
+        }
     }
 
     fun loadFirstPage() {
@@ -38,12 +64,7 @@ class FeedViewModel @Inject constructor(
                 pageNumber = currentPage,
                 sortByHot = sortByHot
             )
-            android.util.Log.d(
-                "FeedVM",
-                "加载结果: isSuccess=${result.isSuccess}, error=${result.exceptionOrNull()?.message}"
-            )
             result.onSuccess { (posts, hasMore) ->
-                android.util.Log.d("FeedVM", "帖子数量: ${posts.size}, hasMore: $hasMore")
             }
             result.fold(
                 onSuccess = { (posts, hasMore) ->
@@ -114,6 +135,48 @@ class FeedViewModel @Inject constructor(
                     }
                 )
             }
+        }
+    }
+
+    fun pullToRefresh() {
+        viewModelScope.launch {
+            val s = _state.value as? FeedUiState.Success
+            if (s != null) {
+                _state.value = s.copy(isRefreshing = true)
+            }
+            currentPage = 1
+            val result = getFeedUseCase(
+                pageSize = pageSize,
+                pageNumber = currentPage,
+                sortByHot = sortByHot
+            )
+            result.fold(
+                onSuccess = { (posts, hasMore) ->
+                    _state.value = if (posts.isEmpty()) {
+                        FeedUiState.Empty
+                    } else {
+                        FeedUiState.Success(
+                            posts = posts,
+                            hasMore = hasMore,
+                            isRefreshing = false,
+                            justRefreshed = true  // 标记
+                        )
+                    }
+                },
+                onFailure = {
+                    val current = _state.value as? FeedUiState.Success
+                    if (current != null) {
+                        _state.value = current.copy(isRefreshing = false)
+                    }
+                }
+            )
+        }
+    }
+
+    fun clearJustRefreshed() {
+        val s = _state.value as? FeedUiState.Success ?: return
+        if (s.justRefreshed) {
+            _state.value = s.copy(justRefreshed = false)
         }
     }
 }

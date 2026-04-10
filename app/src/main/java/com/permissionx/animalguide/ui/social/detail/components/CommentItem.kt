@@ -29,7 +29,8 @@ fun CommentItem(
     onReply: (Comment) -> Unit,
     onLike: (Comment) -> Unit,
     onDelete: (Comment) -> Unit,
-    onToggleReplies: (String) -> Unit
+    onToggleReplies: (String) -> Unit,
+    onUserClick: ((String) -> Unit)? = null  // 新增
 ) {
     Column(
         modifier = Modifier
@@ -42,7 +43,10 @@ fun CommentItem(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer),
+                    .background(MaterialTheme.colorScheme.primaryContainer)
+                    .clickable(enabled = onUserClick != null) {
+                        onUserClick?.invoke(comment.uid)
+                    },
                 contentAlignment = Alignment.Center
             ) {
                 if (comment.avatarUrl.isNotEmpty()) {
@@ -72,7 +76,11 @@ fun CommentItem(
                         text = comment.nickname,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable(enabled = onUserClick != null) {
+                                onUserClick?.invoke(comment.uid)
+                            }
                     )
                     Text(
                         text = formatTime(comment.createdAt),

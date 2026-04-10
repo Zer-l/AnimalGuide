@@ -11,10 +11,13 @@ import com.permissionx.animalguide.data.remote.cloudbase.FollowDataSource
 import com.permissionx.animalguide.data.remote.cloudbase.CollectDataSource
 import com.permissionx.animalguide.data.remote.cloudbase.StorageDataSource
 import android.content.Context
+import com.permissionx.animalguide.data.remote.cloudbase.DefaultImageHelper
+import com.permissionx.animalguide.data.remote.cloudbase.SearchDataSource
 import com.permissionx.animalguide.data.repository.AuthRepository
 import com.permissionx.animalguide.data.repository.CommentRepository
 import com.permissionx.animalguide.data.repository.FollowRepository
 import com.permissionx.animalguide.data.repository.PostRepository
+import com.permissionx.animalguide.data.repository.SearchRepository
 import com.permissionx.animalguide.data.repository.UserRepository
 import dagger.Module
 import dagger.Provides
@@ -36,7 +39,12 @@ object CloudBaseModule {
     fun provideUserSessionManager(
         @ApplicationContext context: Context,
         cloudBaseClient: CloudBaseClient
-    ): UserSessionManager = UserSessionManager(context, cloudBaseClient)
+    ): UserSessionManager {
+        val manager = UserSessionManager(context, cloudBaseClient)
+        // 设置回调，让 CloudBaseClient 能调用刷新逻辑
+        cloudBaseClient.setSessionManagerProvider { manager }
+        return manager
+    }
 
     @Provides
     @Singleton
@@ -83,9 +91,11 @@ object CloudBaseModule {
         collectDataSource: CollectDataSource,
         storageDataSource: StorageDataSource,
         userSessionManager: UserSessionManager,
-        userRepository: UserRepository
+        userRepository: UserRepository,
+        commentDataSource: CommentDataSource  // 新增
     ): PostRepository = PostRepository(
-        postDataSource, likeDataSource, collectDataSource, storageDataSource, userSessionManager, userRepository
+        postDataSource, likeDataSource, collectDataSource, storageDataSource,
+        userSessionManager, userRepository, commentDataSource
     )
 
 
@@ -94,8 +104,16 @@ object CloudBaseModule {
     fun provideAuthRepository(
         authDataSource: AuthDataSource,
         userDataSource: UserDataSource,
-        userSessionManager: UserSessionManager
-    ): AuthRepository = AuthRepository(authDataSource, userDataSource, userSessionManager)
+        userSessionManager: UserSessionManager,
+        storageDataSource: StorageDataSource,
+        defaultImageHelper: DefaultImageHelper  // 新增
+    ): AuthRepository = AuthRepository(
+        authDataSource,
+        userDataSource,
+        userSessionManager,
+        storageDataSource,
+        defaultImageHelper
+    )
 
     @Provides
     @Singleton
@@ -133,4 +151,21 @@ object CloudBaseModule {
         userDataSource: UserDataSource,
         userSessionManager: UserSessionManager
     ): FollowRepository = FollowRepository(followDataSource, userDataSource, userSessionManager)
+
+    @Provides
+    @Singleton
+    fun provideSearchDataSource(client: CloudBaseClient): SearchDataSource =
+        SearchDataSource(client)
+
+    @Provides
+    @Singleton
+    fun provideSearchRepository(
+        searchDataSource: SearchDataSource,
+        postRepository: PostRepository,
+        userSessionManager: UserSessionManager,
+        likeDataSource: LikeDataSource,
+        collectDataSource: CollectDataSource
+    ): SearchRepository = SearchRepository(
+        searchDataSource, postRepository, userSessionManager, likeDataSource, collectDataSource
+    )
 }

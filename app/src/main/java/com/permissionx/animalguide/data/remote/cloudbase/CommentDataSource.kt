@@ -30,7 +30,7 @@ class CommentDataSource @Inject constructor(
                     "where" to mapOf(
                         "\$and" to listOf(
                             mapOf("postId" to mapOf("\$eq" to postId)),
-                            mapOf("parentId" to mapOf("\$eq" to null)),
+                            mapOf("parentId" to mapOf("\$eq" to "")),
                             mapOf("status" to mapOf("\$eq" to "NORMAL"))
                         )
                     )
@@ -100,11 +100,11 @@ class CommentDataSource @Inject constructor(
             "nickname" to nickname,
             "avatarUrl" to avatarUrl,
             "content" to content,
+            "parentId" to (parentId ?: ""),  // 主评论写空字符串
             "likeCount" to 0,
             "replyCount" to 0,
             "status" to "NORMAL"
         )
-        parentId?.let { data["parentId"] = it }
         replyToUid?.let { data["replyToUid"] = it }
         replyToNickname?.let { data["replyToNickname"] = it }
 

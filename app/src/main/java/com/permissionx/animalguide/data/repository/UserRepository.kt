@@ -1,6 +1,7 @@
 package com.permissionx.animalguide.data.repository
 
 import android.net.Uri
+import com.permissionx.animalguide.data.remote.cloudbase.DefaultImageHelper
 import com.permissionx.animalguide.data.remote.cloudbase.StorageDataSource
 import com.permissionx.animalguide.data.remote.cloudbase.UserDataSource
 import com.permissionx.animalguide.data.remote.cloudbase.UserSessionManager
@@ -24,39 +25,6 @@ class UserRepository @Inject constructor(
             },
             onFailure = { Result.failure(it) }
         )
-    }
-
-    // 创建用户资料（新用户注册后调用）
-    suspend fun createUserProfile(
-        phone: String,
-        nickname: String,
-        avatarUri: Uri?,
-        bio: String,
-        gender: String
-    ): Result<Boolean> {
-        val uid = userSessionManager.currentUser.value?.uid
-            ?: return Result.failure(Exception("未登录"))
-
-        val avatarUrl = if (avatarUri != null) {
-            val uploadResult = storageDataSource.uploadImage(
-                uri = avatarUri,
-                path = "avatars/$uid.jpg"
-            )
-            uploadResult.getOrNull() ?: ""
-        } else ""
-
-        val createResult = userDataSource.createUser(
-            uid = uid,
-            phone = phone,
-            nickname = nickname,
-            avatarUrl = avatarUrl,
-            bio = bio,
-            gender = gender
-        )
-        createResult.onFailure { return Result.failure(it) }
-
-        userSessionManager.updateUserInfo(nickname, avatarUrl)
-        return Result.success(true)
     }
 
     // 更新用户资料
@@ -94,6 +62,7 @@ class UserRepository @Inject constructor(
         id = this["_id"] as? String ?: "",
         nickname = this["nickname"] as? String ?: "",
         avatarUrl = this["avatarUrl"] as? String ?: "",
+        backgroundUrl = this["backgroundUrl"] as? String ?: "",  // 新增
         bio = this["bio"] as? String ?: "",
         phone = this["phone"] as? String ?: "",
         gender = this["gender"] as? String ?: "SECRET",
@@ -109,4 +78,39 @@ class UserRepository @Inject constructor(
         field: String,
         increment: Int = 1
     ): Result<Boolean> = userDataSource.updateUserCount(uid, field, increment)
+
+    suspend fun updateBackground(backgroundUri: Uri): Result<String> {
+        val user = userSessionManager.currentUser.value
+            ?: return Result.failure(Exception("未登录"))
+
+        val uploadResult = storageDataSource.uploadImage(
+            uri = backgroundUri,
+            path = "backgrounds/${user.uid}_${System.currentTimeMillis()}.jpg"
+        )
+        val backgroundUrl = uploadResult.getOrNull()
+            ?: return Result.failure(Exception("上传失败"))
+
+        val updateResult = userDataSource.updateBackground(user.uid, backgroundUrl)
+        updateResult.onFailure { return Result.failure(it) }
+
+        return Result.success(backgroundUrl)
+    }
+
+    suspend fun updateAvatar(avatarUri: Uri): Result<String> {
+        val user = userSessionManager.currentUser.value
+            ?: return Result.failure(Exception("未登录"))
+
+        val uploadResult = storageDataSource.uploadImage(
+            uri = avatarUri,
+            path = "avatars/${user.uid}_${System.currentTimeMillis()}.jpg"
+        )
+        val avatarUrl = uploadResult.getOrNull()
+            ?: return Result.failure(Exception("上传失败"))
+
+        val updateResult = userDataSource.updateAvatar(user.uid, avatarUrl)
+        updateResult.onFailure { return Result.failure(it) }
+
+        userSessionManager.updateUserInfo(user.nickname, avatarUrl)
+        return Result.success(avatarUrl)
+    }
 }

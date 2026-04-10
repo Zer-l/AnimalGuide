@@ -3,9 +3,14 @@ package com.permissionx.animalguide.data.location
 import android.annotation.SuppressLint
 import android.content.Context
 import android.location.Geocoder
+import android.location.Location
+import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -33,36 +38,61 @@ class LocationHelper @Inject constructor() {
 
             if (providers.isEmpty()) return null
 
-            val provider = if (providers.contains(LocationManager.GPS_PROVIDER)) {
-                LocationManager.GPS_PROVIDER
-            } else {
-                LocationManager.NETWORK_PROVIDER
-            }
-
-            val lastLocation = locationManager.getLastKnownLocation(provider)
+            // 先尝试缓存（GPS 精度更高，优先读）
+            val lastLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+                ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
 
             val location = lastLocation ?: run {
-                suspendCancellableCoroutine { cont ->
-                    val listener = object : android.location.LocationListener {
-                        override fun onLocationChanged(loc: android.location.Location) {
-                            locationManager.removeUpdates(this)
-                            cont.resume(loc)
+                // 主动请求用 Network（速度快，室内也能用）
+                val requestProvider = if (providers.contains(LocationManager.NETWORK_PROVIDER)) {
+                    LocationManager.NETWORK_PROVIDER
+                } else {
+                    LocationManager.GPS_PROVIDER
+                }
+
+                withTimeoutOrNull(5000) {
+                    suspendCancellableCoroutine { cont ->
+                        val listener = object : LocationListener {
+                            override fun onLocationChanged(loc: Location) {
+                                locationManager.removeUpdates(this)
+                                if (cont.isActive) cont.resume(loc)
+                            }
+
+                            @Deprecated("Deprecated in Java")
+                            override fun onStatusChanged(
+                                provider: String?,
+                                status: Int,
+                                extras: android.os.Bundle?
+                            ) {
+                            }
+
+                            override fun onProviderEnabled(provider: String) {}
+                            override fun onProviderDisabled(provider: String) {
+                                if (cont.isActive) cont.resume(null)
+                            }
                         }
 
-                        @Deprecated("Deprecated in Java")
-                        override fun onStatusChanged(
-                            provider: String?,
-                            status: Int,
-                            extras: android.os.Bundle?
-                        ) {
+                        Handler(Looper.getMainLooper()).post {
+                            try {
+                                locationManager.requestLocationUpdates(
+                                    requestProvider,
+                                    0L,
+                                    0f,
+                                    listener
+                                )
+                            } catch (e: Exception) {
+                                if (cont.isActive) cont.resume(null)
+                            }
+                        }
+
+                        cont.invokeOnCancellation {
+                            locationManager.removeUpdates(listener)
                         }
                     }
-                    locationManager.requestLocationUpdates(provider, 0L, 0f, listener)
-                    cont.invokeOnCancellation { locationManager.removeUpdates(listener) }
                 }
             }
 
-            location.let {
+            location?.let {
                 val address = getAddress(context, it.latitude, it.longitude)
                 LocationResult(it.latitude, it.longitude, address)
             }

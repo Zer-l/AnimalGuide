@@ -80,21 +80,21 @@ fun PostDetailHeader(
         }
 
         Column(modifier = Modifier.padding(16.dp)) {
-            // 动物分享标签
-            if (post.animalName.isNotEmpty()) {
-                Surface(
-                    shape = RoundedCornerShape(20.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                ) {
-                    Text(
-                        text = "🦁 ${post.animalName}",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                    )
-                }
-            }
+//            // 动物分享标签
+//            if (post.animalName.isNotEmpty()) {
+//                Surface(
+//                    shape = RoundedCornerShape(20.dp),
+//                    color = MaterialTheme.colorScheme.primaryContainer,
+//                    modifier = Modifier.padding(bottom = 8.dp)
+//                ) {
+//                    Text(
+//                        text = "🦁 ${post.animalName}",
+//                        fontSize = 12.sp,
+//                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+//                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+//                    )
+//                }
+//            }
 
             // 标题
             Text(

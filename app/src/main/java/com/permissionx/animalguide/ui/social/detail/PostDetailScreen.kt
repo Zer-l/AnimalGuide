@@ -20,6 +20,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.permissionx.animalguide.ui.social.detail.components.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
@@ -88,7 +89,10 @@ fun PostDetailScreen(
                 title = {
                     state.post?.let { post ->
                         Row(
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.clickable {
+                                navController.navigate(Routes.userProfile(post.uid))
+                            }
                         ) {
                             // 头像
                             Box(
@@ -313,9 +317,12 @@ fun PostDetailScreen(
                             isExpanded = state.expandedReplies.contains(comment.id),
                             replies = state.repliesMap[comment.id] ?: emptyList(),
                             onReply = { viewModel.setReplyTo(it) },
-                            onLike = { viewModel.likeComment(it) },  // 绑定
+                            onLike = { viewModel.likeComment(it) },
                             onDelete = { viewModel.deleteComment(it.id) },
-                            onToggleReplies = { viewModel.toggleReplies(it) }
+                            onToggleReplies = { viewModel.toggleReplies(it) },
+                            onUserClick = { uid ->
+                                navController.navigate(Routes.userProfile(uid))
+                            }
                         )
                     }
 

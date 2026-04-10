@@ -7,6 +7,7 @@ import com.permissionx.animalguide.data.remote.cloudbase.UserSessionManager
 import com.permissionx.animalguide.data.repository.CommentRepository
 import com.permissionx.animalguide.data.repository.FollowRepository
 import com.permissionx.animalguide.data.repository.PostRepository
+import com.permissionx.animalguide.data.repository.PostUpdateEvent
 import com.permissionx.animalguide.domain.model.social.Comment
 import com.permissionx.animalguide.domain.usecase.social.comment.GetCommentsUseCase
 import com.permissionx.animalguide.domain.usecase.social.comment.PublishCommentUseCase
@@ -25,7 +26,8 @@ class PostDetailViewModel @Inject constructor(
     private val getCommentsUseCase: GetCommentsUseCase,
     private val publishCommentUseCase: PublishCommentUseCase,
     private val deletePostUseCase: DeletePostUseCase,
-    private val userSessionManager: UserSessionManager
+    private val userSessionManager: UserSessionManager,
+    private val postUpdateEvent: PostUpdateEvent
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(PostDetailUiState())
@@ -111,6 +113,7 @@ class PostDetailViewModel @Inject constructor(
             val result = postRepository.toggleLike(post)
             result.onSuccess { updatedPost ->
                 _state.value = _state.value.copy(post = updatedPost)
+                postUpdateEvent.emit(updatedPost)
             }
         }
     }
@@ -121,6 +124,7 @@ class PostDetailViewModel @Inject constructor(
             val result = postRepository.toggleCollect(post)
             result.onSuccess { updatedPost ->
                 _state.value = _state.value.copy(post = updatedPost)
+                postUpdateEvent.emit(updatedPost)
             }
         }
     }
@@ -135,10 +139,15 @@ class PostDetailViewModel @Inject constructor(
 
         viewModelScope.launch {
             _state.value = _state.value.copy(isSubmittingComment = true)
+
+            val rootParentId = if (replyTo != null) {
+                replyTo.parentId.takeIf { !it.isNullOrEmpty() } ?: replyTo.id
+            } else null
+
             val result = publishCommentUseCase(
                 postId = post.id,
                 content = content,
-                parentId = replyTo?.id,
+                parentId = rootParentId,  // 改这里
                 replyToUid = replyTo?.uid,
                 replyToNickname = replyTo?.nickname
             )
@@ -155,11 +164,19 @@ class PostDetailViewModel @Inject constructor(
                             )
                         )
                     } else {
-                        // 回复，添加到对应评论的回复列表
+                        // 回复，添加到根评论的回复列表
                         val updatedReplies = _state.value.repliesMap.toMutableMap()
-                        val currentReplies = updatedReplies[replyTo.id] ?: emptyList()
-                        updatedReplies[replyTo.id] = currentReplies + newComment
+                        val currentReplies = updatedReplies[rootParentId] ?: emptyList()
+                        updatedReplies[rootParentId!!] = currentReplies + newComment
+
+                        // 更新根评论的 replyCount
+                        val updatedComments = _state.value.comments.map { c ->
+                            if (c.id == rootParentId) c.copy(replyCount = c.replyCount + 1)
+                            else c
+                        }
+
                         _state.value = _state.value.copy(
+                            comments = updatedComments,
                             repliesMap = updatedReplies,
                             replyTo = null,
                             isSubmittingComment = false,
@@ -168,6 +185,7 @@ class PostDetailViewModel @Inject constructor(
                             )
                         )
                     }
+                    _state.value.post?.let { postUpdateEvent.emit(it) }
                 },
                 onFailure = {
                     _state.value = _state.value.copy(isSubmittingComment = false)
@@ -205,19 +223,78 @@ class PostDetailViewModel @Inject constructor(
         }
     }
 
+    // 防止重复点击
+    private val deletingCommentIds = mutableSetOf<String>()
+
     fun deleteComment(commentId: String) {
         val postId = _state.value.post?.id ?: return
+        if (deletingCommentIds.contains(commentId)) return  // 防重复
+        deletingCommentIds.add(commentId)
+
         viewModelScope.launch {
-            val result = commentRepository.deleteComment(commentId, postId)
-            result.onSuccess {
-                _state.value = _state.value.copy(
-                    comments = _state.value.comments.filter { it.id != commentId },
-                    post = _state.value.post?.copy(
-                        commentCount = (_state.value.post?.commentCount ?: 1) - 1
+            // 判断是主评论还是子评论
+            val isMainComment = _state.value.comments.any { it.id == commentId }
+
+            if (isMainComment) {
+                // 主评论：级联删除子评论
+                val replyCount = _state.value.repliesMap[commentId]?.size
+                    ?: _state.value.comments.find { it.id == commentId }?.replyCount
+                    ?: 0
+
+                val result =
+                    commentRepository.deleteCommentWithReplies(commentId, postId, replyCount)
+                result.onSuccess {
+                    _state.value = _state.value.copy(
+                        comments = _state.value.comments.filter { it.id != commentId },
+                        repliesMap = _state.value.repliesMap - commentId,
+                        expandedReplies = _state.value.expandedReplies - commentId,
+                        post = _state.value.post?.copy(
+                            commentCount = ((_state.value.post?.commentCount
+                                ?: 0) - 1 - replyCount).coerceAtLeast(0)
+                        )
                     )
-                )
+                }
+            } else {
+                // 子评论：找到所属主评论，更新回复列表
+                val parentId = findParentId(commentId)
+                val result = commentRepository.deleteComment(commentId, postId)
+                result.onSuccess {
+                    if (parentId != null) {
+                        val updatedReplies = _state.value.repliesMap.toMutableMap()
+                        updatedReplies[parentId] =
+                            updatedReplies[parentId]?.filter { it.id != commentId } ?: emptyList()
+
+                        val updatedComments = _state.value.comments.map { c ->
+                            if (c.id == parentId) c.copy(
+                                replyCount = (c.replyCount - 1).coerceAtLeast(
+                                    0
+                                )
+                            )
+                            else c
+                        }
+
+                        _state.value = _state.value.copy(
+                            comments = updatedComments,
+                            repliesMap = updatedReplies,
+                            post = _state.value.post?.copy(
+                                commentCount = ((_state.value.post?.commentCount
+                                    ?: 1) - 1).coerceAtLeast(0)
+                            )
+                        )
+                    }
+                }
             }
+
+            deletingCommentIds.remove(commentId)
         }
+    }
+
+    // 从 repliesMap 中找子评论所属的主评论 id
+    private fun findParentId(commentId: String): String? {
+        for ((parentId, replies) in _state.value.repliesMap) {
+            if (replies.any { it.id == commentId }) return parentId
+        }
+        return null
     }
 
     fun toggleFollow() {

@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.permissionx.animalguide.data.remote.cloudbase.UserSessionManager
 import com.permissionx.animalguide.data.repository.PostRepository
+import com.permissionx.animalguide.data.repository.PostUpdateEvent
+import com.permissionx.animalguide.data.repository.UserRepository
 import com.permissionx.animalguide.domain.usecase.social.auth.LogoutUseCase
 import com.permissionx.animalguide.domain.usecase.social.user.GetUserPostsUseCase
 import com.permissionx.animalguide.domain.usecase.social.user.GetUserProfileUseCase
@@ -20,6 +22,8 @@ class MeViewModel @Inject constructor(
     private val getUserPostsUseCase: GetUserPostsUseCase,
     private val postRepository: PostRepository,
     private val logoutUseCase: LogoutUseCase,
+    private val userRepository: UserRepository,
+    private val postUpdateEvent: PostUpdateEvent
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<MeUiState>(MeUiState.Loading)
@@ -30,6 +34,22 @@ class MeViewModel @Inject constructor(
 
     init {
         load()
+        viewModelScope.launch {
+            postUpdateEvent.updates.collect { updatedPost ->
+                val s = _state.value as? MeUiState.Success ?: return@collect
+                _state.value = s.copy(
+                    posts = s.posts.map {
+                        if (it.id == updatedPost.id) it.copy(
+                            likeCount = updatedPost.likeCount,
+                            commentCount = updatedPost.commentCount,
+                            collectCount = updatedPost.collectCount,
+                            isLiked = updatedPost.isLiked,
+                            isCollected = updatedPost.isCollected
+                        ) else it
+                    }
+                )
+            }
+        }
     }
 
     fun load() {
@@ -39,20 +59,16 @@ class MeViewModel @Inject constructor(
             return
         }
 
-        android.util.Log.d("MeViewModel", "开始加载用户资料，uid: ${currentUser.uid}")
-        
         viewModelScope.launch {
             _state.value = MeUiState.Loading
 
             val profileResult = getUserProfileUseCase(currentUser.uid)
             profileResult.fold(
                 onSuccess = { user ->
-                    android.util.Log.d("MeViewModel", "用户资料加载成功，postCount: ${user.postCount}, followCount: ${user.followCount}, followerCount: ${user.followerCount}")
                     _state.value = MeUiState.Success(user = user)
                     loadMyPosts(currentUser.uid)
                 },
                 onFailure = {
-                    android.util.Log.e("MeViewModel", "加载用户资料失败: ${it.message}")
                     _state.value = MeUiState.Error(
                         it.message ?: "加载失败，请重试"
                     )
@@ -91,7 +107,7 @@ class MeViewModel @Inject constructor(
 
         viewModelScope.launch {
             _state.value = s.copy(isLoadingMorePosts = true)
-            
+
             if (s.selectedTab == 0) {
                 // 加载更多"我的帖子"
                 currentPageMyPosts++
@@ -136,7 +152,7 @@ class MeViewModel @Inject constructor(
 
     fun selectTab(index: Int) {
         val uid = userSessionManager.currentUser.value?.uid ?: return
-        
+
         // 切换tab时加载对应数据
         if (index == 0) {
             loadMyPosts(uid)
@@ -146,4 +162,62 @@ class MeViewModel @Inject constructor(
     }
 
     fun logout() = logoutUseCase()
+
+    fun toggleLike(post: com.permissionx.animalguide.domain.model.social.Post) {
+        viewModelScope.launch {
+            val result = postRepository.toggleLike(post)
+            result.onSuccess { updatedPost ->
+                val current = _state.value as? MeUiState.Success ?: return@onSuccess
+                _state.value = current.copy(
+                    posts = current.posts.map { if (it.id == updatedPost.id) updatedPost else it },
+                    user = current.user.copy(
+                        likeCount = if (updatedPost.isLiked) {
+                            current.user.likeCount + 1
+                        } else {
+                            (current.user.likeCount - 1).coerceAtLeast(0)
+                        }
+                    )
+                )
+            }
+        }
+    }
+
+    fun toggleCollect(post: com.permissionx.animalguide.domain.model.social.Post) {
+        viewModelScope.launch {
+            val result = postRepository.toggleCollect(post)
+            result.onSuccess { updatedPost ->
+                val current = _state.value as? MeUiState.Success ?: return@onSuccess
+                if (current.selectedTab == 1 && !updatedPost.isCollected) {
+                    // 收藏页取消收藏，从列表移除
+                    _state.value = current.copy(
+                        posts = current.posts.filter { it.id != updatedPost.id }
+                    )
+                } else {
+                    _state.value = current.copy(
+                        posts = current.posts.map { if (it.id == updatedPost.id) updatedPost else it }
+                    )
+                }
+            }
+        }
+    }
+
+    fun updateBackground(uri: android.net.Uri) {
+        viewModelScope.launch {
+            val s = _state.value as? MeUiState.Success ?: return@launch
+            val result = userRepository.updateBackground(uri)
+            result.onSuccess { url ->
+                _state.value = s.copy(user = s.user.copy(backgroundUrl = url))
+            }
+        }
+    }
+
+    fun updateAvatar(uri: android.net.Uri) {
+        viewModelScope.launch {
+            val s = _state.value as? MeUiState.Success ?: return@launch
+            val result = userRepository.updateAvatar(uri)
+            result.onSuccess { url ->
+                _state.value = s.copy(user = s.user.copy(avatarUrl = url))
+            }
+        }
+    }
 }

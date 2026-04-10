@@ -68,7 +68,7 @@ class AuthDataSource @Inject constructor(
         phoneNumber: String,
         verificationToken: String,
         password: String? = null
-    ): Result<Pair<String, String>> {
+    ): Result<Triple<String, String, String>> {
         val phone = formatPhone(phoneNumber)
 
         val loginResult = client.request<Map<String, Any>>(
@@ -85,8 +85,9 @@ class AuthDataSource @Inject constructor(
             val map = loginResult.getOrNull()!!
             val accessToken = map["access_token"] as? String
             val uid = map["sub"] as? String
+            val refreshToken = map["refresh_token"] as? String ?: ""
             if (accessToken != null && uid != null) {
-                return Result.success(Pair(accessToken, uid))
+                return Result.success(Triple(accessToken, uid, refreshToken))
             }
         }
 
@@ -108,8 +109,9 @@ class AuthDataSource @Inject constructor(
             onSuccess = { map ->
                 val accessToken = map["access_token"] as? String
                 val uid = map["sub"] as? String
+                val refreshToken = map["refresh_token"] as? String ?: ""
                 if (accessToken != null && uid != null) {
-                    Result.success(Pair(accessToken, uid))
+                    Result.success(Triple(accessToken, uid, refreshToken))
                 } else {
                     Result.failure(Exception("注册失败，请重试"))
                 }
@@ -124,7 +126,7 @@ class AuthDataSource @Inject constructor(
     suspend fun loginWithPassword(
         phoneNumber: String,
         password: String
-    ): Result<Pair<String, String>> {
+    ): Result<Triple<String, String, String>> {
         val username = AuthValidator.phoneToUsername(phoneNumber)
         val result = client.request<Map<String, Any>>(
             method = "POST",
@@ -139,8 +141,9 @@ class AuthDataSource @Inject constructor(
             onSuccess = { map ->
                 val accessToken = map["access_token"] as? String
                 val uid = map["sub"] as? String
+                val refreshToken = map["refresh_token"] as? String ?: ""
                 if (accessToken != null && uid != null) {
-                    Result.success(Pair(accessToken, uid))
+                    Result.success(Triple(accessToken, uid, refreshToken))
                 } else {
                     Result.failure(Exception("登录失败，请重试"))
                 }

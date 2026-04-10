@@ -169,13 +169,25 @@ fun CameraScreen(
                     .size(100.dp)
                     .align(Alignment.Center)
             )
+        } else {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("未授予相机权限", color = Color.White, fontSize = 16.sp)
+                }
+            }
+        }
 
+        // 底部区域（缩放按钮 + 操作栏）
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.BottomCenter),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
             // 缩放比例
             if (zoomRatio >= 1f) {
                 Surface(
                     modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 120.dp)
                         .clickable {
                             val targetZoom = when {
                                 zoomRatio < 1.5f -> 2f
@@ -191,100 +203,91 @@ fun CameraScreen(
                         text = "${"%.1f".format(zoomRatio)}x",
                         color = Color.White,
                         fontSize = 14.sp,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                     )
                 }
             }
-        } else {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("未授予相机权限", color = Color.White, fontSize = 16.sp)
-                }
-            }
-        }
-
-        // 底部操作栏
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .align(Alignment.BottomCenter)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.7f))
+            // 操作栏
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.7f))
+                        )
                     )
-                )
-                .navigationBarsPadding()
-                .padding(bottom = 32.dp, top = 24.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(bottom = 8.dp, top = 4.dp)
             ) {
-                IconButton(
-                    onClick = {
-                        if (permissionState.hasMedia) galleryLauncher.launch("image/*")
-                        else {
-                            Toast.makeText(
-                                context,
-                                "请授予相册权限",
-                                Toast.LENGTH_LONG
-                            ).show()
-                        }
-                    },
-                    modifier = Modifier
-                        .size(56.dp)
-                        .background(Color.White.copy(alpha = 0.2f), CircleShape)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.PhotoLibrary,
-                        contentDescription = "从相册选择",
-                        tint = Color.White,
-                        modifier = Modifier.size(28.dp)
-                    )
-                }
-
-                Box(
-                    modifier = Modifier
-                        .size(80.dp)
-                        .clickable {
-                            if (permissionState.hasCamera) {
-                                takePhoto(
-                                    context = context,
-                                    imageCapture = imageCapture,
-                                    executor = ContextCompat.getMainExecutor(context),
-                                    onSuccess = { uri ->
-                                        viewModel.setPendingImageUri(uri)
-                                        navController.navigate(Routes.RESULT_NO_PARAM)
-                                    },
-                                    onError = {
-                                        Toast.makeText(context, "拍照失败", Toast.LENGTH_SHORT)
-                                            .show()
-                                    }
-                                )
-                            } else {
+                    IconButton(
+                        onClick = {
+                            if (permissionState.hasMedia) galleryLauncher.launch("image/*")
+                            else {
                                 Toast.makeText(
                                     context,
-                                    "请授予相机权限",
-                                    Toast.LENGTH_SHORT
+                                    "请授予相册权限",
+                                    Toast.LENGTH_LONG
                                 ).show()
                             }
-                        }
-                ) {
-                    Box(
+                        },
                         modifier = Modifier
-                            .fillMaxSize()
-                            .border(3.dp, Color.White, CircleShape)
-                    )
-                    Box(
-                        modifier = Modifier
-                            .size(64.dp)
-                            .background(Color.White, CircleShape)
-                            .align(Alignment.Center)
-                    )
-                }
+                            .size(56.dp)
+                            .background(Color.White.copy(alpha = 0.2f), CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PhotoLibrary,
+                            contentDescription = "从相册选择",
+                            tint = Color.White,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
 
-                Spacer(modifier = Modifier.size(56.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(80.dp)
+                            .clickable {
+                                if (permissionState.hasCamera) {
+                                    takePhoto(
+                                        context = context,
+                                        imageCapture = imageCapture,
+                                        executor = ContextCompat.getMainExecutor(context),
+                                        onSuccess = { uri ->
+                                            viewModel.setPendingImageUri(uri)
+                                            navController.navigate(Routes.RESULT_NO_PARAM)
+                                        },
+                                        onError = {
+                                            Toast.makeText(context, "拍照失败", Toast.LENGTH_SHORT)
+                                                .show()
+                                        }
+                                    )
+                                } else {
+                                    Toast.makeText(
+                                        context,
+                                        "请授予相机权限",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            }
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .border(3.dp, Color.White, CircleShape)
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(64.dp)
+                                .background(Color.White, CircleShape)
+                                .align(Alignment.Center)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.size(56.dp))
+                }
             }
         }
     }

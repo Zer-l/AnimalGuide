@@ -25,6 +25,10 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.permissionx.animalguide.data.remote.cloudbase.AuthValidator
 import com.permissionx.animalguide.ui.navigation.Routes
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.text.input.ImeAction
 
 
 @Composable
@@ -50,13 +54,20 @@ fun LoginScreen(
 
     var navigated by remember { mutableStateOf(false) }
 
+    val nextFieldFocusRequester = remember { FocusRequester() }
+
     LaunchedEffect(state) {
         if (navigated) return@LaunchedEffect
         when (val s = state) {
             is LoginUiState.Success -> {
                 navigated = true
+                // 先弹出登录页
+                navController.popBackStack(Routes.LOGIN, inclusive = true)
+                // 再用底部导航的方式切到 ME
                 navController.navigate(Routes.ME) {
-                    popUpTo(Routes.LOGIN) { inclusive = true }
+                    popUpTo(Routes.CAMERA) { saveState = true }
+                    launchSingleTop = true
+                    restoreState = true
                 }
             }
 
@@ -133,7 +144,13 @@ fun LoginScreen(
                 },
                 label = { Text("手机号") },
                 placeholder = { Text("请输入手机号") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Phone,
+                    imeAction = ImeAction.Next  // 新增
+                ),
+                keyboardActions = KeyboardActions(
+                    onNext = { nextFieldFocusRequester.requestFocus() }  // 新增
+                ),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
@@ -170,15 +187,26 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             if (selectedTab == 0) {
-                // 验证码登录
                 OutlinedTextField(
                     value = code,
                     onValueChange = { if (it.length <= 6) code = it },
                     label = { Text("验证码") },
                     placeholder = { Text("请输入6位验证码") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number,
+                        imeAction = ImeAction.Done  // 新增
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onDone = {
+                            if (phone.length == 11 && code.length == 6) {
+                                viewModel.loginWithCode(phone, code)
+                            }
+                        }
+                    ),
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(nextFieldFocusRequester),  // 新增
                     shape = RoundedCornerShape(12.dp),
                     trailingIcon = {
                         TextButton(
@@ -204,20 +232,31 @@ fun LoginScreen(
                     }
                 )
             } else {
-                // 密码登录
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it },
                     label = { Text("密码") },
                     placeholder = { Text("请输入密码") },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(nextFieldFocusRequester),  // 新增
                     shape = RoundedCornerShape(12.dp),
                     visualTransformation = if (passwordVisible)
                         VisualTransformation.None
                     else
                         PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Password,
+                        imeAction = ImeAction.Done  // 新增
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onDone = {
+                            if (phone.length == 11 && password.isNotBlank()) {
+                                viewModel.loginWithPassword(phone, password)
+                            }
+                        }
+                    ),
                     trailingIcon = {
                         IconButton(onClick = { passwordVisible = !passwordVisible }) {
                             Icon(

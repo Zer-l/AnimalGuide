@@ -27,6 +27,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.permissionx.animalguide.domain.model.social.Gender
+import com.permissionx.animalguide.utils.CropType
+import com.permissionx.animalguide.utils.CropImageContract
+import com.permissionx.animalguide.utils.CropImageInput
 
 @Composable
 fun EditProfileScreen(
@@ -43,9 +46,19 @@ fun EditProfileScreen(
     var gender by remember { mutableStateOf(Gender.SECRET) }
     var avatarUri by remember { mutableStateOf<Uri?>(null) }
 
+    val cropLauncher = rememberLauncherForActivityResult(
+        contract = CropImageContract()
+    ) { croppedUri ->
+        avatarUri = croppedUri
+    }
+
     val galleryLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
-    ) { uri -> avatarUri = uri }
+    ) { uri ->
+        uri?.let {
+            cropLauncher.launch(CropImageInput(it, CropType.AVATAR))
+        }
+    }
 
     LaunchedEffect(state) {
         if (state is EditProfileUiState.Success) {
@@ -57,11 +70,11 @@ fun EditProfileScreen(
         modifier = Modifier
             .fillMaxSize()
     ) {
-        // 顶部栏
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 4.dp),
+                .height(56.dp)
+                .padding(horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = { navController.popBackStack() }) {

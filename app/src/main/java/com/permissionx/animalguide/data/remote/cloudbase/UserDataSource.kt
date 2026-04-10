@@ -1,6 +1,7 @@
 package com.permissionx.animalguide.data.remote.cloudbase
 
 import com.google.gson.reflect.TypeToken
+import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 
 class UserDataSource @Inject constructor(
@@ -10,6 +11,9 @@ class UserDataSource @Inject constructor(
         private const val MODEL = "users"
         private const val ENV_TYPE = "prod"
     }
+
+    // 防止并发读写计数字段
+    private val countMutex = kotlinx.coroutines.sync.Mutex()
 
     // 根据 uid 查询用户
     suspend fun getUserByUid(uid: String): Result<Map<String, Any>?> {
@@ -111,39 +115,70 @@ class UserDataSource @Inject constructor(
         field: String,
         increment: Int = 1
     ): Result<Boolean> {
-        // 先获取用户当前数据
-        val userResult = getUserByUid(uid)
-        return userResult.fold(
-            onSuccess = { user ->
-                if (user == null) {
-                    Result.failure(Exception("用户不存在"))
-                } else {
-                    // 计算新值
-                    val currentValue = (user[field] as? Double)?.toInt() ?: 0
-                    val newValue = (currentValue + increment).coerceAtLeast(0)
-                    
-                    // 直接更新为新值
-                    val result = client.request<Any>(
-                        method = "PUT",
-                        path = "/v1/model/$ENV_TYPE/$MODEL/update",
-                        body = mapOf(
-                            "data" to mapOf(
-                                field to newValue
-                            ),
-                            "filter" to mapOf(
-                                "where" to mapOf(
-                                    "_openid" to mapOf("\$eq" to uid)
+        countMutex.withLock {
+            val userResult = getUserByUid(uid)
+            return userResult.fold(
+                onSuccess = { user ->
+                    if (user == null) {
+                        Result.failure(Exception("用户不存在"))
+                    } else {
+                        val currentValue = (user[field] as? Double)?.toInt() ?: 0
+                        val newValue = (currentValue + increment).coerceAtLeast(0)
+
+                        val result = client.request<Any>(
+                            method = "PUT",
+                            path = "/v1/model/$ENV_TYPE/$MODEL/update",
+                            body = mapOf(
+                                "data" to mapOf(field to newValue),
+                                "filter" to mapOf(
+                                    "where" to mapOf(
+                                        "_openid" to mapOf("\$eq" to uid)
+                                    )
                                 )
                             )
                         )
-                    )
-                    result.fold(
-                        onSuccess = { Result.success(true) },
-                        onFailure = { Result.failure(Exception("更新计数失败，请稍后重试")) }
-                    )
-                }
-            },
-            onFailure = { Result.failure(Exception("获取用户信息失败，请稍后重试")) }
+                        result.fold(
+                            onSuccess = { Result.success(true) },
+                            onFailure = { Result.failure(Exception("更新计数失败，请稍后重试")) }
+                        )
+                    }
+                },
+                onFailure = { Result.failure(Exception("获取用户信息失败，请稍后重试")) }
+            )
+        }
+    }
+
+    suspend fun updateBackground(uid: String, backgroundUrl: String): Result<Boolean> {
+        val result = client.request<Any>(
+            method = "PUT",
+            path = "/v1/model/$ENV_TYPE/$MODEL/update",
+            body = mapOf(
+                "data" to mapOf("backgroundUrl" to backgroundUrl),
+                "filter" to mapOf(
+                    "where" to mapOf("_openid" to mapOf("\$eq" to uid))
+                )
+            )
+        )
+        return result.fold(
+            onSuccess = { Result.success(true) },
+            onFailure = { Result.failure(Exception("保存失败，请稍后重试")) }
+        )
+    }
+
+    suspend fun updateAvatar(uid: String, avatarUrl: String): Result<Boolean> {
+        val result = client.request<Any>(
+            method = "PUT",
+            path = "/v1/model/$ENV_TYPE/$MODEL/update",
+            body = mapOf(
+                "data" to mapOf("avatarUrl" to avatarUrl),
+                "filter" to mapOf(
+                    "where" to mapOf("_openid" to mapOf("\$eq" to uid))
+                )
+            )
+        )
+        return result.fold(
+            onSuccess = { Result.success(true) },
+            onFailure = { Result.failure(Exception("保存失败，请稍后重试")) }
         )
     }
 }

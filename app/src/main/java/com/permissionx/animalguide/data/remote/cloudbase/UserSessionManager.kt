@@ -5,6 +5,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -13,7 +14,8 @@ data class CurrentUser(
     val phone: String,
     val nickname: String = "",
     val avatarUrl: String = "",
-    val accessToken: String
+    val accessToken: String,
+    val refreshToken: String = ""  // 新增
 )
 
 @Singleton
@@ -28,19 +30,24 @@ class UserSessionManager @Inject constructor(
 
     val isLoggedIn: Boolean get() = _currentUser.value != null
 
+    // 刷新锁，防止多个请求同时触发刷新
+    private val refreshMutex = kotlinx.coroutines.sync.Mutex()
+
     fun onLoginSuccess(
         uid: String,
         phone: String,
         nickname: String,
         avatarUrl: String,
-        accessToken: String
+        accessToken: String,
+        refreshToken: String  // 新增参数
     ) {
         val user = CurrentUser(
             uid = uid,
             phone = phone,
             nickname = nickname,
             avatarUrl = avatarUrl,
-            accessToken = accessToken
+            accessToken = accessToken,
+            refreshToken = refreshToken
         )
         _currentUser.value = user
         cloudBaseClient.updateAccessToken(accessToken)
@@ -59,6 +66,47 @@ class UserSessionManager @Inject constructor(
         saveSession(_currentUser.value!!)
     }
 
+    /**
+     * 刷新 access_token，返回新 token；失败返回 null 并清除登录态
+     * 使用 Mutex 保证并发安全：多个 401 同时触发时只刷新一次
+     */
+    suspend fun refreshAccessToken(): String? {
+        refreshMutex.withLock {
+            val currentRefreshToken = _currentUser.value?.refreshToken
+                ?: return null
+
+            return try {
+                val result = cloudBaseClient.requestWithoutAuth<Map<String, Any>>(
+                    method = "POST",
+                    path = "/auth/v1/token",
+                    body = mapOf(
+                        "grant_type" to "refresh_token",
+                        "refresh_token" to currentRefreshToken
+                    ),
+                    typeToken = object : com.google.gson.reflect.TypeToken<Map<String, Any>>() {}
+                )
+
+                result.getOrNull()?.let { map ->
+                    val newAccessToken = map["access_token"] as? String
+                    val newRefreshToken = map["refresh_token"] as? String
+                    if (newAccessToken != null && newRefreshToken != null) {
+                        val user = _currentUser.value!!.copy(
+                            accessToken = newAccessToken,
+                            refreshToken = newRefreshToken
+                        )
+                        _currentUser.value = user
+                        cloudBaseClient.updateAccessToken(newAccessToken)
+                        saveSession(user)
+                        newAccessToken
+                    } else null
+                }
+            } catch (e: Exception) {
+                onLogout()
+                null
+            }
+        }
+    }
+
     private fun saveSession(user: CurrentUser) {
         prefs.edit()
             .putString("uid", user.uid)
@@ -66,6 +114,7 @@ class UserSessionManager @Inject constructor(
             .putString("nickname", user.nickname)
             .putString("avatarUrl", user.avatarUrl)
             .putString("accessToken", user.accessToken)
+            .putString("refreshToken", user.refreshToken)  // 新增
             .apply()
         cloudBaseClient.updateAccessToken(user.accessToken)
     }
@@ -76,13 +125,15 @@ class UserSessionManager @Inject constructor(
         val accessToken = prefs.getString("accessToken", null) ?: return null
         val nickname = prefs.getString("nickname", "") ?: ""
         val avatarUrl = prefs.getString("avatarUrl", "") ?: ""
+        val refreshToken = prefs.getString("refreshToken", "") ?: ""  // 新增
         cloudBaseClient.updateAccessToken(accessToken)
         return CurrentUser(
             uid = uid,
             phone = phone,
             nickname = nickname,
             avatarUrl = avatarUrl,
-            accessToken = accessToken
+            accessToken = accessToken,
+            refreshToken = refreshToken
         )
     }
 

@@ -138,4 +138,6 @@ dependencies {
     implementation("androidx.paging:paging-compose:3.2.1")
 
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
+
+    implementation("com.github.yalantis:ucrop:2.2.10")
 }

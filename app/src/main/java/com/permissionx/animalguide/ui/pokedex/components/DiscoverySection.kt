@@ -58,7 +58,7 @@ fun DiscoverySection(
                 else -> {
                     InfoRowIfValid(
                         label = "📍 发现地点",
-                        value = "暂无记录（请授予位置权限后重新收录）"
+                        value = "暂无记录（请打开定位服务并且授予位置权限后重新收录）"
                     )
                 }
             }

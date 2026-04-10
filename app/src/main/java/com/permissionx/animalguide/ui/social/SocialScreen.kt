@@ -2,17 +2,15 @@ package com.permissionx.animalguide.ui.social
 
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -27,8 +25,7 @@ fun SocialScreen(
     viewModel: SocialViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState(initial = SocialUiState.Guest)
-    val currentUser by viewModel.currentUser.collectAsState()
-    var selectedTab by remember { mutableIntStateOf(0) }
+    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     var showLoginDialog by remember { mutableStateOf(false) }
 
     val loginViewModel: LoginViewModel = hiltViewModel(
@@ -57,23 +54,27 @@ fun SocialScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-
         // 顶部栏
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .height(56.dp)
+                .padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 text = "探险家社区",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
+                fontSize = 22.sp,
+                style = MaterialTheme.typography.headlineSmall,
                 modifier = Modifier.weight(1f)
             )
             // 搜索按钮
             IconButton(onClick = {
-                navController.navigate(Routes.SEARCH_SOCIAL)
+                if (uiState is SocialUiState.LoggedIn) {
+                    navController.navigate(Routes.SEARCH_SOCIAL)
+                } else {
+                    showLoginDialog = true
+                }
             }) {
                 Icon(
                     imageVector = Icons.Default.Search,
@@ -116,14 +117,16 @@ fun SocialScreen(
                     navController = navController,
                     isLoggedIn = uiState is SocialUiState.LoggedIn,
                     sortByHot = true,
-                    onRequireLogin = { showLoginDialog = true }
+                    onRequireLogin = { showLoginDialog = true },
+                    viewModel = hiltViewModel(key = "feed_hot")
                 )
 
                 1 -> FeedScreen(
                     navController = navController,
                     isLoggedIn = uiState is SocialUiState.LoggedIn,
                     sortByHot = false,
-                    onRequireLogin = { showLoginDialog = true }
+                    onRequireLogin = { showLoginDialog = true },
+                    viewModel = hiltViewModel(key = "feed_latest")
                 )
             }
         }

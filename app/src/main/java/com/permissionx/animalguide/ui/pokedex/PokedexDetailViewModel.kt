@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.permissionx.animalguide.data.local.entity.AnimalEntry
 import com.permissionx.animalguide.data.local.entity.AnimalPhoto
+import com.permissionx.animalguide.data.remote.cloudbase.UserSessionManager
 import com.permissionx.animalguide.data.repository.AnimalRepository
 import com.permissionx.animalguide.data.repository.PhotoRepository
 import com.permissionx.animalguide.domain.error.AppError
@@ -35,11 +36,14 @@ class PokedexDetailViewModel @Inject constructor(
     private val animalRepository: AnimalRepository,
     private val photoRepository: PhotoRepository,
     private val generateAnimalInfoUseCase: GenerateAnimalInfoUseCase,
+    private val userSessionManager: UserSessionManager,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<DetailUiState>(DetailUiState.Loading)
     val state = _state.asStateFlow()
+
+    val isLoggedIn: Boolean get() = userSessionManager.isLoggedIn
 
     fun loadAnimal(animalName: String) {
         viewModelScope.launch {

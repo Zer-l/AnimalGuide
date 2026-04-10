@@ -5,9 +5,11 @@ import com.permissionx.animalguide.domain.model.social.Post
 sealed class FeedUiState {
     object Loading : FeedUiState()
     data class Success(
-        val posts: List<Post>,
-        val hasMore: Boolean,
-        val isLoadingMore: Boolean = false
+        val posts: List<Post> = emptyList(),
+        val hasMore: Boolean = false,
+        val isLoadingMore: Boolean = false,
+        val isRefreshing: Boolean = false,
+        val justRefreshed: Boolean = false  // 新增
     ) : FeedUiState()
 
     object Empty : FeedUiState()

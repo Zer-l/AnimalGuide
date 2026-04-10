@@ -10,8 +10,11 @@ import com.permissionx.animalguide.domain.model.social.PostType
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import com.permissionx.animalguide.data.remote.cloudbase.CollectDataSource
+import com.permissionx.animalguide.data.remote.cloudbase.CommentDataSource
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 
 @Singleton
 class PostRepository @Inject constructor(
@@ -20,8 +23,13 @@ class PostRepository @Inject constructor(
     private val collectDataSource: CollectDataSource,
     private val storageDataSource: StorageDataSource,
     private val userSessionManager: UserSessionManager,
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
+    private val commentDataSource: CommentDataSource  // 新增
 ) : ViewModel() {
+    // 防止同一帖子并发点赞/收藏
+    private val likingPostIds = mutableSetOf<String>()
+    private val collectingPostIds = mutableSetOf<String>()
+
     // 获取帖子列表
     suspend fun getPosts(
         pageSize: Int = 10,
@@ -33,14 +41,17 @@ class PostRepository @Inject constructor(
             onSuccess = { (records, hasMore) ->
                 val uid = userSessionManager.currentUser.value?.uid
                 val posts = records.map { it.toPost() }
-                // 查询当前用户的点赞和收藏状态
                 val postsWithStatus = if (uid != null) {
-                    posts.map { post ->
-                        val isLiked = likeDataSource.isLiked(uid, post.id, "POST")
-                            .getOrNull() ?: false
-                        val isCollected = collectDataSource.isCollected(uid, post.id)
-                            .getOrNull() ?: false
-                        post.copy(isLiked = isLiked, isCollected = isCollected)
+                    coroutineScope {
+                        posts.map { post ->
+                            async {
+                                val isLiked = likeDataSource.isLiked(uid, post.id, "POST")
+                                    .getOrNull() ?: false
+                                val isCollected = collectDataSource.isCollected(uid, post.id)
+                                    .getOrNull() ?: false
+                                post.copy(isLiked = isLiked, isCollected = isCollected)
+                            }
+                        }.map { it.await() }
                     }
                 } else posts
                 Result.success(Pair(postsWithStatus, hasMore))
@@ -79,14 +90,9 @@ class PostRepository @Inject constructor(
         // 上传图片
         val imageUrls = mutableListOf<String>()
         imageUris.forEachIndexed { index, uri ->
-            android.util.Log.d("PostRepo", "上传第${index + 1}张图片: $uri")
             val uploadResult = storageDataSource.uploadImage(
                 uri = uri,
                 path = "posts/${user.uid}/${System.currentTimeMillis()}_$index.jpg"
-            )
-            android.util.Log.d(
-                "PostRepo",
-                "上传结果: ${uploadResult.isSuccess}, 错误: ${uploadResult.exceptionOrNull()?.message}"
             )
             uploadResult.getOrNull()?.let { imageUrls.add(it) }
         }
@@ -109,32 +115,25 @@ class PostRepository @Inject constructor(
             "status" to "NORMAL"
         )
 
-        android.util.Log.d("PostRepo", "开始创建帖子, uid: ${user.uid}")
-        android.util.Log.d("PostRepo", "图片上传完成, urls: $imageUrls")
-        android.util.Log.d("PostRepo", "发帖data: $data")
-
         if (animalName.isNotBlank()) data["animalName"] = animalName
         if (location.isNotBlank()) data["location"] = location
         latitude?.let { data["latitude"] = it }
         longitude?.let { data["longitude"] = it }
 
         val createResult = postDataSource.createPost(data)
-        
+
         // 发帖成功后，更新用户的postCount
         createResult.onSuccess {
-            android.util.Log.d("PostRepo", "帖子创建成功，更新用户postCount")
             try {
                 userRepository.updateUserCount(user.uid, "postCount", 1)
-                android.util.Log.d("PostRepo", "用户postCount已更新")
             } catch (e: Exception) {
-                android.util.Log.e("PostRepo", "更新postCount失败: ${e.message}")
             }
         }
-        
+
         return createResult
     }
 
-    internal fun Map<String, Any>.toPost() = Post(
+    fun Map<String, Any>.toPost() = Post(
         id = this["_id"] as? String ?: "",
         uid = this["uid"] as? String ?: "",
         nickname = this["nickname"] as? String ?: "",
@@ -166,70 +165,86 @@ class PostRepository @Inject constructor(
     )
 
     suspend fun toggleLike(post: Post): Result<Post> {
-        val uid = userSessionManager.currentUser.value?.uid
-            ?: return Result.failure(Exception("请先登录"))
+        if (likingPostIds.contains(post.id)) return Result.failure(Exception("操作中"))
+        likingPostIds.add(post.id)
 
-        return if (post.isLiked) {
-            val result = likeDataSource.unlike(uid, post.id, "POST")
-            result.fold(
-                onSuccess = {
-                    val newCount = (post.likeCount - 1).coerceAtLeast(0)
-                    postDataSource.updatePostCount(post.id, "likeCount", newCount)
-                    // 更新帖子作者的likeCount -1
-                    android.util.Log.d("PostRepo", "取消点赞成功，更新作者likeCount")
-                    try {
-                        userRepository.updateUserCount(post.uid, "likeCount", -1)
-                    } catch (e: Exception) {
-                        android.util.Log.e("PostRepo", "更新作者likeCount失败: ${e.message}")
-                    }
-                    Result.success(post.copy(isLiked = false, likeCount = newCount))
-                },
-                onFailure = { Result.failure(it) }
-            )
-        } else {
-            val result = likeDataSource.like(uid, post.id, "POST")
-            result.fold(
-                onSuccess = {
-                    val newCount = post.likeCount + 1
-                    postDataSource.updatePostCount(post.id, "likeCount", newCount)
-                    // 更新帖子作者的likeCount +1
-                    android.util.Log.d("PostRepo", "点赞成功，更新作者likeCount")
-                    try {
-                        userRepository.updateUserCount(post.uid, "likeCount", 1)
-                    } catch (e: Exception) {
-                        android.util.Log.e("PostRepo", "更新作者likeCount失败: ${e.message}")
-                    }
-                    Result.success(post.copy(isLiked = true, likeCount = newCount))
-                },
-                onFailure = { Result.failure(it) }
-            )
+        try {
+            val uid = userSessionManager.currentUser.value?.uid
+                ?: return Result.failure(Exception("请先登录"))
+
+            return if (post.isLiked) {
+                val result = likeDataSource.unlike(uid, post.id, "POST")
+                result.fold(
+                    onSuccess = {
+                        val newCount = (post.likeCount - 1).coerceAtLeast(0)
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                            postDataSource.updatePostCount(post.id, "likeCount", newCount)
+                            try {
+                                userRepository.updateUserCount(post.uid, "likeCount", -1)
+                            } catch (e: Exception) {
+                            }
+                        }
+                        Result.success(post.copy(isLiked = false, likeCount = newCount))
+                    },
+                    onFailure = { Result.failure(it) }
+                )
+            } else {
+                val result = likeDataSource.like(uid, post.id, "POST")
+                result.fold(
+                    onSuccess = {
+                        val newCount = post.likeCount + 1
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                            postDataSource.updatePostCount(post.id, "likeCount", newCount)
+                            try {
+                                userRepository.updateUserCount(post.uid, "likeCount", 1)
+                            } catch (e: Exception) {
+                            }
+                        }
+                        Result.success(post.copy(isLiked = true, likeCount = newCount))
+                    },
+                    onFailure = { Result.failure(it) }
+                )
+            }
+        } finally {
+            likingPostIds.remove(post.id)
         }
     }
 
     suspend fun toggleCollect(post: Post): Result<Post> {
-        val uid = userSessionManager.currentUser.value?.uid
-            ?: return Result.failure(Exception("请先登录"))
+        if (collectingPostIds.contains(post.id)) return Result.failure(Exception("操作中"))
+        collectingPostIds.add(post.id)
 
-        return if (post.isCollected) {
-            val result = collectDataSource.uncollect(uid, post.id)
-            result.fold(
-                onSuccess = {
-                    val newCount = (post.collectCount - 1).coerceAtLeast(0)
-                    postDataSource.updatePostCount(post.id, "collectCount", newCount)
-                    Result.success(post.copy(isCollected = false, collectCount = newCount))
-                },
-                onFailure = { Result.failure(it) }
-            )
-        } else {
-            val result = collectDataSource.collect(uid, post.id)
-            result.fold(
-                onSuccess = {
-                    val newCount = post.collectCount + 1
-                    postDataSource.updatePostCount(post.id, "collectCount", newCount)
-                    Result.success(post.copy(isCollected = true, collectCount = newCount))
-                },
-                onFailure = { Result.failure(it) }
-            )
+        try {
+            val uid = userSessionManager.currentUser.value?.uid
+                ?: return Result.failure(Exception("请先登录"))
+
+            return if (post.isCollected) {
+                val result = collectDataSource.uncollect(uid, post.id)
+                result.fold(
+                    onSuccess = {
+                        val newCount = (post.collectCount - 1).coerceAtLeast(0)
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                            postDataSource.updatePostCount(post.id, "collectCount", newCount)
+                        }
+                        Result.success(post.copy(isCollected = false, collectCount = newCount))
+                    },
+                    onFailure = { Result.failure(it) }
+                )
+            } else {
+                val result = collectDataSource.collect(uid, post.id)
+                result.fold(
+                    onSuccess = {
+                        val newCount = post.collectCount + 1
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                            postDataSource.updatePostCount(post.id, "collectCount", newCount)
+                        }
+                        Result.success(post.copy(isCollected = true, collectCount = newCount))
+                    },
+                    onFailure = { Result.failure(it) }
+                )
+            }
+        } finally {
+            collectingPostIds.remove(post.id)
         }
     }
 
@@ -247,28 +262,55 @@ class PostRepository @Inject constructor(
 
     // 删除帖子
     suspend fun deletePost(postId: String): Result<Boolean> {
-        // 先获取帖子信息，以便删除后更新作者的postCount
         val postResult = getPostById(postId)
         if (postResult.isFailure) {
             return Result.failure(Exception("获取帖子信息失败"))
         }
-        
+
         val post = postResult.getOrNull() ?: return Result.failure(Exception("帖子不存在"))
-        
-        // 删除帖子
+
         val deleteResult = postDataSource.deletePost(postId)
-        
+
         deleteResult.onSuccess {
-            // 删除成功后，更新帖子作者的postCount -1
-            android.util.Log.d("PostRepo", "帖子删除成功，更新作者postCount")
-            try {
-                userRepository.updateUserCount(post.uid, "postCount", -1)
-                android.util.Log.d("PostRepo", "作者postCount已更新")
-            } catch (e: Exception) {
-                android.util.Log.e("PostRepo", "更新postCount失败: ${e.message}")
+            kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                try {
+                    // 1. 更新作者计数
+                    userRepository.updateUserCount(post.uid, "postCount", -1)
+                    if (post.likeCount > 0) {
+                        userRepository.updateUserCount(post.uid, "likeCount", -post.likeCount)
+                    }
+
+                    // 2. 删除帖子的所有点赞记录
+                    likeDataSource.deleteAllLikes(postId, "POST")
+
+                    // 3. 删除帖子的所有收藏记录
+                    collectDataSource.deleteAllCollects(postId)
+
+                    // 4. 删除帖子的所有评论（含子评论）及评论点赞
+                    val commentsResult = commentDataSource.getComments(postId, pageSize = 100)
+                    commentsResult.onSuccess { (records, _) ->
+                        records.forEach { record ->
+                            val commentId = record["_id"] as? String ?: return@forEach
+                            // 删除子评论
+                            val repliesResult = commentDataSource.getReplies(commentId)
+                            repliesResult.onSuccess { replies ->
+                                replies.forEach { reply ->
+                                    val replyId = reply["_id"] as? String ?: return@forEach
+                                    likeDataSource.deleteAllLikes(replyId, "COMMENT")
+                                    commentDataSource.deleteComment(replyId)
+                                }
+                            }
+                            // 删除主评论点赞和主评论本身
+                            likeDataSource.deleteAllLikes(commentId, "COMMENT")
+                            commentDataSource.deleteComment(commentId)
+                        }
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("PostRepository", "删帖清理失败: ${e.message}")
+                }
             }
         }
-        
+
         return deleteResult
     }
 
@@ -285,7 +327,22 @@ class PostRepository @Inject constructor(
         )
         return result.fold(
             onSuccess = { (records, hasMore) ->
-                Result.success(Pair(records.map { it.toPost() }, hasMore))
+                val currentUid = userSessionManager.currentUser.value?.uid
+                val posts = records.map { it.toPost() }
+                val postsWithStatus = if (currentUid != null) {
+                    coroutineScope {
+                        posts.map { post ->
+                            async {
+                                val isLiked = likeDataSource.isLiked(currentUid, post.id, "POST")
+                                    .getOrNull() ?: false
+                                val isCollected = collectDataSource.isCollected(currentUid, post.id)
+                                    .getOrNull() ?: false
+                                post.copy(isLiked = isLiked, isCollected = isCollected)
+                            }
+                        }.map { it.await() }
+                    }
+                } else posts
+                Result.success(Pair(postsWithStatus, hasMore))
             },
             onFailure = { Result.failure(it) }
         )
@@ -296,23 +353,35 @@ class PostRepository @Inject constructor(
         pageNumber: Int = 1,
         pageSize: Int = 10
     ): Result<Pair<List<Post>, Boolean>> {
-        // 先获取用户的收藏帖子ID列表
         val collectResult = collectDataSource.getUserCollectPostIds(uid, pageSize, pageNumber)
         return collectResult.fold(
             onSuccess = { (postIds, hasMore) ->
                 if (postIds.isEmpty()) {
                     Result.success(Pair(emptyList(), hasMore))
                 } else {
-                    // 根据ID列表获取完整的帖子信息
-                    val posts = postIds.mapNotNull { postId ->
-                        getPostById(postId).getOrNull()
+                    val currentUid = userSessionManager.currentUser.value?.uid
+                    coroutineScope {
+                        val posts = postIds.map { postId ->
+                            async {
+                                getPostById(postId).getOrNull()
+                            }
+                        }.mapNotNull { it.await() }
+
+                        val postsWithStatus = posts.map { post ->
+                            async {
+                                val isLiked = if (currentUid != null) {
+                                    likeDataSource.isLiked(currentUid, post.id, "POST")
+                                        .getOrNull() ?: false
+                                } else false
+                                post.copy(isLiked = isLiked, isCollected = true)
+                            }
+                        }.map { it.await() }
+
+                        Result.success(Pair(postsWithStatus, hasMore))
                     }
-                    // 标记为已收藏
-                    val collectedPosts = posts.map { it.copy(isCollected = true) }
-                     Result.success(Pair(collectedPosts, hasMore))
-                 }
-             },
-             onFailure = { Result.failure(it) }
-         )
-     }
+                }
+            },
+            onFailure = { Result.failure(it) }
+        )
+    }
 }

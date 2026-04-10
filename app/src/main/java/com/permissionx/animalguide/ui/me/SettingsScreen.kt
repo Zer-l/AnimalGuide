@@ -1,5 +1,6 @@
 package com.permissionx.animalguide.ui.me
 
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -25,10 +26,13 @@ fun SettingsScreen(
     viewModel: MeViewModel = hiltViewModel()
 ) {
     var showLogoutDialog by remember { mutableStateOf(false) }
+    var showPasswordTip by remember { mutableStateOf(false) }
 
     val loginViewModel: LoginViewModel = hiltViewModel(
         viewModelStoreOwner = LocalContext.current as ComponentActivity
     )
+
+    val currentUser by viewModel.currentUser.collectAsState()
 
     if (showLogoutDialog) {
         AlertDialog(
@@ -58,11 +62,11 @@ fun SettingsScreen(
         modifier = Modifier
             .fillMaxSize()
     ) {
-        // 顶部栏
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 4.dp),
+                .height(56.dp)
+                .padding(horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = { navController.popBackStack() }) {
@@ -86,38 +90,46 @@ fun SettingsScreen(
             onClick = { navController.navigate(Routes.HISTORY) }
         )
 
-        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+        HorizontalDivider()
 
         SettingsItem(
             title = "登录密码",
-            onClick = { }
+            onClick = { showPasswordTip = true }
         )
-        // 说明文字
-        Text(
-            text = "  密码在注册时设置，暂不支持修改",
-            fontSize = 12.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 16.dp)
-        )
-        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+
+        if (showPasswordTip) {
+            AlertDialog(
+                onDismissRequest = { showPasswordTip = false },
+                title = { Text("登录密码") },
+                text = { Text("密码在注册时设置，暂不支持修改") },
+                confirmButton = {
+                    TextButton(onClick = { showPasswordTip = false }) {
+                        Text("知道了")
+                    }
+                }
+            )
+        }
+        HorizontalDivider()
 
         // 关于
         SettingsItem(
             title = "关于晓物",
-            onClick = { /* 后续实现 */ }
+            onClick = { navController.navigate(Routes.ABOUT) }
         )
 
-        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+        HorizontalDivider()
 
         Spacer(modifier = Modifier.height(24.dp))
 
         // 退出登录
-        SettingsItem(
-            title = "退出登录",
-            titleColor = MaterialTheme.colorScheme.error,
-            showArrow = false,
-            onClick = { showLogoutDialog = true }
-        )
+        if (currentUser != null) {
+            SettingsItem(
+                title = "退出登录",
+                titleColor = MaterialTheme.colorScheme.error,
+                showArrow = false,
+                onClick = { showLogoutDialog = true }
+            )
+        }
     }
 }
 

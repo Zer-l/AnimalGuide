@@ -111,4 +111,23 @@ class CollectDataSource @Inject constructor(
             onFailure = { Result.failure(it) }
         )
     }
+
+    // 删除某个帖子的所有收藏记录
+    suspend fun deleteAllCollects(postId: String): Result<Boolean> {
+        val result = client.request<Any>(
+            method = "POST",
+            path = "/v1/model/$ENV_TYPE/$MODEL/delete",
+            body = mapOf(
+                "filter" to mapOf(
+                    "where" to mapOf(
+                        "postId" to mapOf("\$eq" to postId)
+                    )
+                )
+            )
+        )
+        return result.fold(
+            onSuccess = { Result.success(true) },
+            onFailure = { Result.success(true) }
+        )
+    }
 }

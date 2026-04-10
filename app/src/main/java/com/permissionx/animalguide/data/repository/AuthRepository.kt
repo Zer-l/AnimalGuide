@@ -1,6 +1,8 @@
 package com.permissionx.animalguide.data.repository
 
 import com.permissionx.animalguide.data.remote.cloudbase.AuthDataSource
+import com.permissionx.animalguide.data.remote.cloudbase.DefaultImageHelper
+import com.permissionx.animalguide.data.remote.cloudbase.StorageDataSource
 import com.permissionx.animalguide.data.remote.cloudbase.UserDataSource
 import com.permissionx.animalguide.data.remote.cloudbase.UserSessionManager
 import javax.inject.Inject
@@ -10,7 +12,9 @@ import javax.inject.Singleton
 class AuthRepository @Inject constructor(
     private val authDataSource: AuthDataSource,
     private val userDataSource: UserDataSource,
-    private val userSessionManager: UserSessionManager
+    private val userSessionManager: UserSessionManager,
+    private val storageDataSource: StorageDataSource,  // 新增
+    private val defaultImageHelper: DefaultImageHelper  // 新增
 ) {
     // 发送验证码，返回 verificationId
     suspend fun sendSmsCode(phone: String): Result<String> =
@@ -31,14 +35,16 @@ class AuthRepository @Inject constructor(
         val authResult = authDataSource.loginOrRegister(phone, verificationToken, password)
         authResult.onFailure { return Result.failure(it) }
 
-        val (accessToken, uid) = authResult.getOrNull()!!
+        val (accessToken, uid, refreshToken) = authResult.getOrNull()!!
 
         userSessionManager.onLoginSuccess(
             uid = uid,
             phone = phone,
             nickname = "",
             avatarUrl = "",
-            accessToken = accessToken
+            accessToken = accessToken,
+            refreshToken = refreshToken
+
         )
 
         val userResult = userDataSource.getUserByUid(uid)
@@ -48,9 +54,22 @@ class AuthRepository @Inject constructor(
         val isNewUser = userMap == null
 
         if (isNewUser) {
-            // 自动生成默认昵称和头像
             val defaultNickname = "探险家${phone.takeLast(4)}"
-            val defaultAvatarUrl = ""
+
+            // 上传随机默认头像
+            val avatarUri = defaultImageHelper.getRandomAvatarUri()
+            val defaultAvatarUrl = storageDataSource.uploadImage(
+                uri = avatarUri,
+                path = "avatars/${uid}_default.jpg"
+            ).getOrNull() ?: ""
+
+            // 上传随机默认背景图
+            val bgUri = defaultImageHelper.getRandomBackgroundUri()
+            val defaultBgUrl = storageDataSource.uploadImage(
+                uri = bgUri,
+                path = "backgrounds/${uid}_default.jpg"
+            ).getOrNull() ?: ""
+
             userDataSource.createUser(
                 uid = uid,
                 phone = phone,
@@ -59,6 +78,12 @@ class AuthRepository @Inject constructor(
                 bio = "",
                 gender = "SECRET"
             )
+
+            // 写入背景图
+            if (defaultBgUrl.isNotEmpty()) {
+                userDataSource.updateBackground(uid, defaultBgUrl)
+            }
+
             userSessionManager.updateUserInfo(defaultNickname, defaultAvatarUrl)
         } else {
             val nickname = userMap!!["nickname"] as? String ?: ""
@@ -81,14 +106,15 @@ class AuthRepository @Inject constructor(
         val authResult = authDataSource.loginWithPassword(phone, password)
         authResult.onFailure { return Result.failure(it) }
 
-        val (accessToken, uid) = authResult.getOrNull()!!
+        val (accessToken, uid, refreshToken) = authResult.getOrNull()!!
 
         userSessionManager.onLoginSuccess(
             uid = uid,
             phone = phone,
             nickname = "",
             avatarUrl = "",
-            accessToken = accessToken
+            accessToken = accessToken,
+            refreshToken = refreshToken
         )
 
         val userResult = userDataSource.getUserByUid(uid)
@@ -101,6 +127,36 @@ class AuthRepository @Inject constructor(
             val nickname = userMap["nickname"] as? String ?: ""
             val avatarUrl = userMap["avatarUrl"] as? String ?: ""
             userSessionManager.updateUserInfo(nickname, avatarUrl)
+        } else if (isNewUser) {
+            // 密码登录的新用户（理论上不常见，但保持一致）
+            val defaultNickname = "探险家${phone.takeLast(4)}"
+
+            val avatarUri = defaultImageHelper.getRandomAvatarUri()
+            val defaultAvatarUrl = storageDataSource.uploadImage(
+                uri = avatarUri,
+                path = "avatars/${uid}_default.jpg"
+            ).getOrNull() ?: ""
+
+            val bgUri = defaultImageHelper.getRandomBackgroundUri()
+            val defaultBgUrl = storageDataSource.uploadImage(
+                uri = bgUri,
+                path = "backgrounds/${uid}_default.jpg"
+            ).getOrNull() ?: ""
+
+            userDataSource.createUser(
+                uid = uid,
+                phone = phone,
+                nickname = defaultNickname,
+                avatarUrl = defaultAvatarUrl,
+                bio = "",
+                gender = "SECRET"
+            )
+
+            if (defaultBgUrl.isNotEmpty()) {
+                userDataSource.updateBackground(uid, defaultBgUrl)
+            }
+
+            userSessionManager.updateUserInfo(defaultNickname, defaultAvatarUrl)
         }
 
         return Result.success(isNewUser)

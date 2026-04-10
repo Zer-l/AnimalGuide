@@ -42,7 +42,6 @@ class HistoryRepository @Inject constructor(
             )
         } catch (e: Exception) {
             // 存储失败不影响主流程，静默处理
-            android.util.Log.e("HistoryRepository", "保存历史记录失败: ${e.toAppError().message}")
         }
     }
 

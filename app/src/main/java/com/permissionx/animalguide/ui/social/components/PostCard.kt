@@ -1,5 +1,6 @@
 package com.permissionx.animalguide.ui.social.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -7,6 +8,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.*
@@ -30,7 +32,8 @@ fun PostCard(
     onClick: () -> Unit,
     onLike: () -> Unit,
     onComment: () -> Unit,
-    onCollect: () -> Unit
+    onCollect: () -> Unit,
+    onUserClick: ((String) -> Unit)? = null  // 新增，默认null保持兼容
 ) {
     Card(
         modifier = Modifier
@@ -47,28 +50,32 @@ fun PostCard(
             // 用户信息行
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(enabled = onUserClick != null) {
+                        onUserClick?.invoke(post.uid)
+                    }
             ) {
                 // 头像
-                AsyncImage(
-                    model = post.avatarUrl.ifEmpty { null },
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
+                Box(
                     modifier = Modifier
                         .size(40.dp)
                         .clip(CircleShape)
-                )
-                if (post.avatarUrl.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
+                        .background(MaterialTheme.colorScheme.primaryContainer),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (post.avatarUrl.isNotEmpty()) {
+                        AsyncImage(
+                            model = post.avatarUrl,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
                         Text(
                             text = post.nickname.take(1),
                             fontSize = 18.sp,
-                            color = MaterialTheme.colorScheme.onPrimary
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                     }
                 }
@@ -88,20 +95,20 @@ fun PostCard(
                     )
                 }
 
-                // 动物分享标签
-                if (post.animalName.isNotEmpty()) {
-                    Surface(
-                        shape = RoundedCornerShape(20.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer
-                    ) {
-                        Text(
-                            text = "🦁 ${post.animalName}",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                        )
-                    }
-                }
+//                // 动物分享标签
+//                if (post.animalName.isNotEmpty()) {
+//                    Surface(
+//                        shape = RoundedCornerShape(20.dp),
+//                        color = MaterialTheme.colorScheme.primaryContainer
+//                    ) {
+//                        Text(
+//                            text = "🦁 ${post.animalName}",
+//                            fontSize = 11.sp,
+//                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+//                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+//                        )
+//                    }
+//                }
             }
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -221,7 +228,10 @@ fun PostCard(
                     modifier = Modifier.clickable { onCollect() }
                 ) {
                     Icon(
-                        imageVector = Icons.Outlined.StarBorder,
+                        imageVector = if (post.isCollected)
+                            Icons.Default.Star
+                        else
+                            Icons.Outlined.StarBorder,
                         contentDescription = "收藏",
                         tint = if (post.isCollected)
                             MaterialTheme.colorScheme.primary
