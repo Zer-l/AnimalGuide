@@ -20,6 +20,7 @@ import com.permissionx.animalguide.ui.pokedex.components.DiscoverySection
 import com.permissionx.animalguide.ui.pokedex.components.NoteSection
 import com.permissionx.animalguide.ui.pokedex.components.PhotoGallery
 import com.permissionx.animalguide.ui.navigation.Routes
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -53,10 +54,24 @@ fun PokedexDetailScreen(
 
         is DetailUiState.Success -> {
             var showLoginDialog by remember { mutableStateOf(false) }
+            var showShareSuccessDialog by remember { mutableStateOf(false) }
 
             val loginViewModel: LoginViewModel = hiltViewModel(
                 viewModelStoreOwner = LocalContext.current as ComponentActivity
             )
+
+            // 监听发布结果
+            val publishSuccess = navController.currentBackStackEntry
+                ?.savedStateHandle
+                ?.getStateFlow("publish_success", false)
+                ?.collectAsState()
+            LaunchedEffect(publishSuccess?.value) {
+                if (publishSuccess?.value == true) {
+                    showShareSuccessDialog = true
+                    navController.currentBackStackEntry
+                        ?.savedStateHandle?.set("publish_success", false)
+                }
+            }
 
             if (showLoginDialog) {
                 AlertDialog(
@@ -73,6 +88,30 @@ fun PokedexDetailScreen(
                     dismissButton = {
                         TextButton(onClick = { showLoginDialog = false }) {
                             Text("暂不登录")
+                        }
+                    }
+                )
+            }
+
+            if (showShareSuccessDialog) {
+                AlertDialog(
+                    onDismissRequest = { showShareSuccessDialog = false },
+                    title = { Text("分享成功！") },
+                    text = { Text("帖子已发布到社区，快去看看吧~") },
+                    confirmButton = {
+                        Button(onClick = {
+                            showShareSuccessDialog = false
+                            viewModel.navigateToLatestFeed()
+                            navController.navigate(Routes.SOCIAL) {
+                                popUpTo(Routes.QA) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        }) { Text("去社区") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showShareSuccessDialog = false }) {
+                            Text("好的")
                         }
                     }
                 )
@@ -98,6 +137,9 @@ fun PokedexDetailScreen(
                     } else {
                         showLoginDialog = true
                     }
+                },
+                onChatWithAI = {
+                    navController.navigate(Routes.animalChat(s.animal.animalName))
                 }
             )
         }
@@ -115,7 +157,8 @@ fun PokedexDetailContent(
     onDelete: () -> Unit,
     onDeletePhoto: (AnimalPhoto) -> Unit,
     onSetCover: (AnimalPhoto) -> Unit,
-    onShareToSocial: () -> Unit
+    onShareToSocial: () -> Unit,
+    onChatWithAI: () -> Unit
 ) {
     val animal = state.animal
     val snackbarHostState = remember { SnackbarHostState() }
@@ -193,21 +236,38 @@ fun PokedexDetailContent(
                     onSave = onSaveNote,
                     onCancel = onCancelEditNote
                 )
-                // 分享到社区
+                // 操作按钮区
                 Spacer(modifier = Modifier.height(8.dp))
-
-                OutlinedButton(
-                    onClick = { onShareToSocial() },
-                    shape = RoundedCornerShape(20.dp),
-                    modifier = Modifier.fillMaxWidth()
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Share,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("分享到社区")
+                    OutlinedButton(
+                        onClick = { onChatWithAI() },
+                        shape = RoundedCornerShape(20.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Chat,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("问问 AI")
+                    }
+                    OutlinedButton(
+                        onClick = { onShareToSocial() },
+                        shape = RoundedCornerShape(20.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Share,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("分享到社区")
+                    }
                 }
                 Spacer(modifier = Modifier.height(16.dp))
             }

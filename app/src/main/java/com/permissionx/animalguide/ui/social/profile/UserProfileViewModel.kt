@@ -2,6 +2,7 @@ package com.permissionx.animalguide.ui.social.profile
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.permissionx.animalguide.data.local.CachedUserDao
 import com.permissionx.animalguide.data.remote.cloudbase.UserSessionManager
 import com.permissionx.animalguide.data.repository.FollowRepository
 import com.permissionx.animalguide.data.repository.PostRepository
@@ -18,7 +19,8 @@ class UserProfileViewModel @Inject constructor(
     private val userRepository: UserRepository,
     private val postRepository: PostRepository,
     private val followRepository: FollowRepository,
-    private val userSessionManager: UserSessionManager
+    private val userSessionManager: UserSessionManager,
+    private val cachedUserDao: CachedUserDao
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<UserProfileUiState>(UserProfileUiState.Loading)
@@ -34,11 +36,23 @@ class UserProfileViewModel @Inject constructor(
     fun load(uid: String) {
         this.uid = uid
         viewModelScope.launch {
-            _state.value = UserProfileUiState.Loading
+            // Step 1：先从缓存取用户数据，立即展示，避免白屏等待
+            val cached = cachedUserDao.getUserByUid(uid)
+            if (cached != null) {
+                _state.value = UserProfileUiState.Success(
+                    user = cached.toUser(),
+                    isFollowing = false  // 关注状态仍需网络，下面会更新
+                )
+            } else {
+                _state.value = UserProfileUiState.Loading
+            }
 
+            // Step 2：从网络刷新完整数据
             val userResult = userRepository.getUserProfile(uid)
             userResult.onFailure {
-                _state.value = UserProfileUiState.Error(it.message ?: "加载失败")
+                if (_state.value !is UserProfileUiState.Success) {
+                    _state.value = UserProfileUiState.Error(it.message ?: "加载失败")
+                }
                 return@launch
             }
 
@@ -48,12 +62,17 @@ class UserProfileViewModel @Inject constructor(
                 followRepository.isFollowing(uid).getOrNull() ?: false
             } else false
 
-            _state.value = UserProfileUiState.Success(
-                user = user,
-                isFollowing = isFollowing
-            )
+            val current = _state.value as? UserProfileUiState.Success
+            if (current != null) {
+                // 保留已加载的帖子列表，只更新用户信息和关注状态
+                _state.value = current.copy(user = user, isFollowing = isFollowing)
+            } else {
+                _state.value = UserProfileUiState.Success(user = user, isFollowing = isFollowing)
+            }
 
-            loadPosts(reset = true)
+            // 仅首次（无帖子数据时）加载帖子
+            val s = _state.value as? UserProfileUiState.Success ?: return@launch
+            if (s.posts.isEmpty()) loadPosts(reset = true)
         }
     }
 

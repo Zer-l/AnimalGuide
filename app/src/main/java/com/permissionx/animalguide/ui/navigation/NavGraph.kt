@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Person
@@ -41,15 +42,18 @@ import com.permissionx.animalguide.ui.social.follow.FollowListScreen
 import com.permissionx.animalguide.ui.social.profile.UserProfileScreen
 import com.permissionx.animalguide.ui.social.publish.PublishScreen
 import com.permissionx.animalguide.ui.social.search.SearchScreen
+import com.permissionx.animalguide.ui.chat.AnimalChatScreen
+import com.permissionx.animalguide.ui.chat.GeneralChatScreen
+import com.permissionx.animalguide.ui.qa.QAScreen
 
 sealed class BottomNavItem(
     val route: String,
     val label: String,
     val icon: ImageVector
 ) {
-    object Camera : BottomNavItem(Routes.CAMERA, "拍摄", Icons.Default.CameraAlt)
+    object QA : BottomNavItem(Routes.QA, "问答", Icons.Default.Forum)
     object Pokedex : BottomNavItem(Routes.POKEDEX, "图鉴", Icons.AutoMirrored.Filled.MenuBook)
-    object History : BottomNavItem(Routes.HISTORY, "历史", Icons.Default.History)
+    object Camera : BottomNavItem(Routes.CAMERA, "拍照", Icons.Default.CameraAlt)
     object Social : BottomNavItem(Routes.SOCIAL, "社区", Icons.Default.People)
     object Me : BottomNavItem(Routes.ME, "我的", Icons.Default.Person)
 }
@@ -57,8 +61,9 @@ sealed class BottomNavItem(
 @Composable
 fun AppNavGraph(navController: NavHostController = rememberNavController()) {
     val bottomNavItems = listOf(
-        BottomNavItem.Camera,
+        BottomNavItem.QA,
         BottomNavItem.Pokedex,
+        BottomNavItem.Camera,
         BottomNavItem.Social,
         BottomNavItem.Me
     )
@@ -83,6 +88,8 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
             && currentRoute?.startsWith("following_list") == false
             && currentRoute?.startsWith("follower_list") == false
             && currentRoute != Routes.ABOUT
+            && currentRoute?.startsWith("animal_chat") == false
+            && currentRoute?.startsWith("general_chat") == false
 
     Scaffold(
         bottomBar = {
@@ -94,7 +101,7 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
                             onClick = {
                                 if (currentRoute != item.route) {
                                     navController.navigate(item.route) {
-                                        popUpTo(Routes.CAMERA) { saveState = true }
+                                        popUpTo(Routes.QA) { saveState = true }
                                         launchSingleTop = true
                                         restoreState = true
                                     }
@@ -106,7 +113,8 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
                                     contentDescription = item.label
                                 )
                             },
-                            label = { Text(item.label) }
+                            label = null,
+                            alwaysShowLabel = false
                         )
                     }
                 }
@@ -115,7 +123,7 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = Routes.CAMERA,
+            startDestination = Routes.QA,
             modifier = Modifier.padding(innerPadding)
         ) {
             composable(
@@ -340,6 +348,25 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
 
             composable(route = Routes.ABOUT) {
                 AboutScreen(navController = navController)
+            }
+
+            composable(route = Routes.QA) {
+                QAScreen(navController = navController)
+            }
+
+            composable(route = Routes.ANIMAL_CHAT) { backStackEntry ->
+                val animalName = Uri.decode(
+                    backStackEntry.arguments?.getString("animalName") ?: ""
+                )
+                AnimalChatScreen(
+                    animalName = animalName,
+                    navController = navController
+                )
+            }
+
+            composable(route = Routes.GENERAL_CHAT) { backStackEntry ->
+                val conversationId = backStackEntry.arguments?.getString("conversationId") ?: ""
+                GeneralChatScreen(navController = navController)
             }
         }
     }

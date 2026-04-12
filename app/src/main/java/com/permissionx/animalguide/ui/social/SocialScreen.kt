@@ -18,6 +18,7 @@ import androidx.navigation.NavController
 import com.permissionx.animalguide.ui.auth.LoginViewModel
 import com.permissionx.animalguide.ui.navigation.Routes
 import com.permissionx.animalguide.ui.social.feed.FeedScreen
+import com.permissionx.animalguide.ui.social.feed.FeedViewModel
 
 @Composable
 fun SocialScreen(
@@ -28,6 +29,17 @@ fun SocialScreen(
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     var showLoginDialog by remember { mutableStateOf(false) }
 
+    // 获取"最新"Tab 的 FeedViewModel，用于响应跨屏导航事件
+    val latestFeedViewModel: FeedViewModel = hiltViewModel(key = "feed_latest")
+
+    // 收到"跳转最新"事件：切换 Tab 并刷新
+    LaunchedEffect(Unit) {
+        viewModel.navigateToLatestEvents.collect {
+            selectedTab = 1
+            latestFeedViewModel.refresh()
+        }
+    }
+
     val loginViewModel: LoginViewModel = hiltViewModel(
         viewModelStoreOwner = LocalContext.current as ComponentActivity
     )
@@ -37,7 +49,7 @@ fun SocialScreen(
         AlertDialog(
             onDismissRequest = { showLoginDialog = false },
             title = { Text("登录后才能使用此功能") },
-            text = { Text("登录后可以发帖、点赞、评论，加入晓物探险家社区！") },
+            text = { Text("登录后可以发帖、点赞、评论，加入晓物社区！") },
             confirmButton = {
                 Button(onClick = {
                     showLoginDialog = false
@@ -63,7 +75,7 @@ fun SocialScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "探险家社区",
+                text = "社区",
                 fontSize = 22.sp,
                 style = MaterialTheme.typography.headlineSmall,
                 modifier = Modifier.weight(1f)

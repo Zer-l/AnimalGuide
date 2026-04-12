@@ -72,9 +72,12 @@ fun PublishScreen(
         }
     }
 
-    // 发布成功后返回
+    // 发布成功后：通知前一个页面，再返回
     LaunchedEffect(state) {
         if (state is PublishUiState.Success) {
+            navController.previousBackStackEntry
+                ?.savedStateHandle
+                ?.set("publish_success", true)
             navController.popBackStack()
         }
     }

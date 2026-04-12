@@ -292,8 +292,33 @@ fun PostDetailScreen(
                         )
                     }
 
+                    // 离线提示（帖子内容来自缓存，评论暂不可用）
+                    if (state.isOffline) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Surface(
+                                    color = MaterialTheme.colorScheme.surfaceVariant,
+                                    shape = MaterialTheme.shapes.small,
+                                    tonalElevation = 2.dp
+                                ) {
+                                    Text(
+                                        text = "离线模式 · 评论暂不可用",
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                        fontSize = 13.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     // 评论列表
-                    if (state.comments.isEmpty() && !state.isLoading) {
+                    if (state.comments.isEmpty() && !state.isLoading && !state.isOffline) {
                         item {
                             Box(
                                 modifier = Modifier

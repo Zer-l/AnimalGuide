@@ -14,5 +14,7 @@ data class PostDetailUiState(
     val expandedReplies: Set<String> = emptySet(),
     val repliesMap: Map<String, List<Comment>> = emptyMap(),
     val isFollowing: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    /** 帖子内容来自缓存，评论等实时数据不可用 */
+    val isOffline: Boolean = false
 )

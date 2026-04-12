@@ -12,6 +12,8 @@ import com.permissionx.animalguide.data.remote.cloudbase.CollectDataSource
 import com.permissionx.animalguide.data.remote.cloudbase.StorageDataSource
 import android.content.Context
 import com.permissionx.animalguide.data.remote.cloudbase.DefaultImageHelper
+import com.permissionx.animalguide.data.local.CachedPostDao
+import com.permissionx.animalguide.data.local.CachedUserDao
 import com.permissionx.animalguide.data.remote.cloudbase.SearchDataSource
 import com.permissionx.animalguide.data.repository.AuthRepository
 import com.permissionx.animalguide.data.repository.CommentRepository
@@ -92,10 +94,11 @@ object CloudBaseModule {
         storageDataSource: StorageDataSource,
         userSessionManager: UserSessionManager,
         userRepository: UserRepository,
-        commentDataSource: CommentDataSource  // 新增
+        commentDataSource: CommentDataSource,
+        cachedPostDao: CachedPostDao
     ): PostRepository = PostRepository(
         postDataSource, likeDataSource, collectDataSource, storageDataSource,
-        userSessionManager, userRepository, commentDataSource
+        userSessionManager, userRepository, commentDataSource, cachedPostDao
     )
 
 
@@ -106,13 +109,15 @@ object CloudBaseModule {
         userDataSource: UserDataSource,
         userSessionManager: UserSessionManager,
         storageDataSource: StorageDataSource,
-        defaultImageHelper: DefaultImageHelper  // 新增
+        defaultImageHelper: DefaultImageHelper,
+        cachedUserDao: CachedUserDao
     ): AuthRepository = AuthRepository(
         authDataSource,
         userDataSource,
         userSessionManager,
         storageDataSource,
-        defaultImageHelper
+        defaultImageHelper,
+        cachedUserDao
     )
 
     @Provides
@@ -120,8 +125,10 @@ object CloudBaseModule {
     fun provideUserRepository(
         userDataSource: UserDataSource,
         storageDataSource: StorageDataSource,
-        userSessionManager: UserSessionManager
-    ): UserRepository = UserRepository(userDataSource, storageDataSource, userSessionManager)
+        userSessionManager: UserSessionManager,
+        cachedUserDao: CachedUserDao
+    ): UserRepository =
+        UserRepository(userDataSource, storageDataSource, userSessionManager, cachedUserDao)
 
     @Provides
     @Singleton

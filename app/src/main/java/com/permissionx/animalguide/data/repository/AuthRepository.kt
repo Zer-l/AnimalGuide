@@ -1,5 +1,7 @@
 package com.permissionx.animalguide.data.repository
 
+import com.permissionx.animalguide.data.local.CachedUserDao
+import com.permissionx.animalguide.data.local.entity.CachedUserEntity
 import com.permissionx.animalguide.data.remote.cloudbase.AuthDataSource
 import com.permissionx.animalguide.data.remote.cloudbase.DefaultImageHelper
 import com.permissionx.animalguide.data.remote.cloudbase.StorageDataSource
@@ -13,8 +15,9 @@ class AuthRepository @Inject constructor(
     private val authDataSource: AuthDataSource,
     private val userDataSource: UserDataSource,
     private val userSessionManager: UserSessionManager,
-    private val storageDataSource: StorageDataSource,  // 新增
-    private val defaultImageHelper: DefaultImageHelper  // 新增
+    private val storageDataSource: StorageDataSource,
+    private val defaultImageHelper: DefaultImageHelper,
+    private val cachedUserDao: CachedUserDao
 ) {
     // 发送验证码，返回 verificationId
     suspend fun sendSmsCode(phone: String): Result<String> =
@@ -85,10 +88,31 @@ class AuthRepository @Inject constructor(
             }
 
             userSessionManager.updateUserInfo(defaultNickname, defaultAvatarUrl)
+            cachedUserDao.insertUser(
+                CachedUserEntity(
+                    uid = uid, nickname = defaultNickname, avatarUrl = defaultAvatarUrl,
+                    backgroundUrl = "", bio = "", phone = phone, gender = "SECRET",
+                    postCount = 0, followCount = 0, followerCount = 0, likeCount = 0,
+                    cachedAt = System.currentTimeMillis()
+                )
+            )
         } else {
             val nickname = userMap!!["nickname"] as? String ?: ""
             val avatarUrl = userMap["avatarUrl"] as? String ?: ""
             userSessionManager.updateUserInfo(nickname, avatarUrl)
+            cachedUserDao.insertUser(
+                CachedUserEntity(
+                    uid = uid, nickname = nickname, avatarUrl = avatarUrl,
+                    backgroundUrl = userMap["backgroundUrl"] as? String ?: "",
+                    bio = userMap["bio"] as? String ?: "",
+                    phone = phone, gender = userMap["gender"] as? String ?: "SECRET",
+                    postCount = (userMap["postCount"] as? Double)?.toInt() ?: 0,
+                    followCount = (userMap["followCount"] as? Double)?.toInt() ?: 0,
+                    followerCount = (userMap["followerCount"] as? Double)?.toInt() ?: 0,
+                    likeCount = (userMap["likeCount"] as? Double)?.toInt() ?: 0,
+                    cachedAt = System.currentTimeMillis()
+                )
+            )
         }
 
         return Result.success(isNewUser)
@@ -127,6 +151,19 @@ class AuthRepository @Inject constructor(
             val nickname = userMap["nickname"] as? String ?: ""
             val avatarUrl = userMap["avatarUrl"] as? String ?: ""
             userSessionManager.updateUserInfo(nickname, avatarUrl)
+            cachedUserDao.insertUser(
+                CachedUserEntity(
+                    uid = uid, nickname = nickname, avatarUrl = avatarUrl,
+                    backgroundUrl = userMap["backgroundUrl"] as? String ?: "",
+                    bio = userMap["bio"] as? String ?: "",
+                    phone = phone, gender = userMap["gender"] as? String ?: "SECRET",
+                    postCount = (userMap["postCount"] as? Double)?.toInt() ?: 0,
+                    followCount = (userMap["followCount"] as? Double)?.toInt() ?: 0,
+                    followerCount = (userMap["followerCount"] as? Double)?.toInt() ?: 0,
+                    likeCount = (userMap["likeCount"] as? Double)?.toInt() ?: 0,
+                    cachedAt = System.currentTimeMillis()
+                )
+            )
         } else if (isNewUser) {
             // 密码登录的新用户（理论上不常见，但保持一致）
             val defaultNickname = "探险家${phone.takeLast(4)}"
@@ -157,6 +194,14 @@ class AuthRepository @Inject constructor(
             }
 
             userSessionManager.updateUserInfo(defaultNickname, defaultAvatarUrl)
+            cachedUserDao.insertUser(
+                CachedUserEntity(
+                    uid = uid, nickname = defaultNickname, avatarUrl = defaultAvatarUrl,
+                    backgroundUrl = "", bio = "", phone = phone, gender = "SECRET",
+                    postCount = 0, followCount = 0, followerCount = 0, likeCount = 0,
+                    cachedAt = System.currentTimeMillis()
+                )
+            )
         }
 
         return Result.success(isNewUser)

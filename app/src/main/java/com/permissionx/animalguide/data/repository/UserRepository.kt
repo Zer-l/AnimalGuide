@@ -1,6 +1,8 @@
 package com.permissionx.animalguide.data.repository
 
 import android.net.Uri
+import com.permissionx.animalguide.data.local.CachedUserDao
+import com.permissionx.animalguide.data.local.entity.toCacheEntity
 import com.permissionx.animalguide.data.remote.cloudbase.DefaultImageHelper
 import com.permissionx.animalguide.data.remote.cloudbase.StorageDataSource
 import com.permissionx.animalguide.data.remote.cloudbase.UserDataSource
@@ -13,17 +15,25 @@ import javax.inject.Singleton
 class UserRepository @Inject constructor(
     private val userDataSource: UserDataSource,
     private val storageDataSource: StorageDataSource,
-    private val userSessionManager: UserSessionManager
+    private val userSessionManager: UserSessionManager,
+    private val cachedUserDao: CachedUserDao
 ) {
-    // 获取用户资料
+    // 获取用户资料：网络优先，失败时回退本地缓存
     suspend fun getUserProfile(uid: String): Result<User> {
         val result = userDataSource.getUserByUid(uid)
         return result.fold(
             onSuccess = { map ->
-                if (map != null) Result.success(map.toUser())
-                else Result.failure(Exception("用户不存在"))
+                if (map != null) {
+                    val user = map.toUser()
+                    cachedUserDao.insertUser(user.toCacheEntity())
+                    Result.success(user)
+                } else Result.failure(Exception("用户不存在"))
             },
-            onFailure = { Result.failure(it) }
+            onFailure = {
+                val cached = cachedUserDao.getUserByUid(uid)
+                if (cached != null) Result.success(cached.toUser())
+                else Result.failure(it)
+            }
         )
     }
 
@@ -59,7 +69,7 @@ class UserRepository @Inject constructor(
     }
 
     private fun Map<String, Any>.toUser() = User(
-        id = this["_id"] as? String ?: "",
+        id = this["_openid"] as? String ?: this["_id"] as? String ?: "",
         nickname = this["nickname"] as? String ?: "",
         avatarUrl = this["avatarUrl"] as? String ?: "",
         backgroundUrl = this["backgroundUrl"] as? String ?: "",  // 新增

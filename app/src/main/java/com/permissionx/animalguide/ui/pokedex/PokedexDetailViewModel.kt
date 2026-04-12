@@ -8,6 +8,7 @@ import com.permissionx.animalguide.data.local.entity.AnimalPhoto
 import com.permissionx.animalguide.data.remote.cloudbase.UserSessionManager
 import com.permissionx.animalguide.data.repository.AnimalRepository
 import com.permissionx.animalguide.data.repository.PhotoRepository
+import com.permissionx.animalguide.data.repository.SocialNavigationEvent
 import com.permissionx.animalguide.domain.error.AppError
 import com.permissionx.animalguide.domain.usecase.GenerateAnimalInfoUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -37,6 +38,7 @@ class PokedexDetailViewModel @Inject constructor(
     private val photoRepository: PhotoRepository,
     private val generateAnimalInfoUseCase: GenerateAnimalInfoUseCase,
     private val userSessionManager: UserSessionManager,
+    private val socialNavigationEvent: SocialNavigationEvent,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -44,6 +46,10 @@ class PokedexDetailViewModel @Inject constructor(
     val state = _state.asStateFlow()
 
     val isLoggedIn: Boolean get() = userSessionManager.isLoggedIn
+
+    fun navigateToLatestFeed() {
+        viewModelScope.launch { socialNavigationEvent.emitNavigateToLatest() }
+    }
 
     fun loadAnimal(animalName: String) {
         viewModelScope.launch {

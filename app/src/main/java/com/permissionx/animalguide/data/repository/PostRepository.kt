@@ -9,6 +9,8 @@ import com.permissionx.animalguide.domain.model.social.PostStatus
 import com.permissionx.animalguide.domain.model.social.PostType
 import android.net.Uri
 import androidx.lifecycle.ViewModel
+import com.permissionx.animalguide.data.local.CachedPostDao
+import com.permissionx.animalguide.data.local.entity.toCacheEntity
 import com.permissionx.animalguide.data.remote.cloudbase.CollectDataSource
 import com.permissionx.animalguide.data.remote.cloudbase.CommentDataSource
 import javax.inject.Inject
@@ -24,7 +26,8 @@ class PostRepository @Inject constructor(
     private val storageDataSource: StorageDataSource,
     private val userSessionManager: UserSessionManager,
     private val userRepository: UserRepository,
-    private val commentDataSource: CommentDataSource  // 新增
+    private val commentDataSource: CommentDataSource,
+    private val cachedPostDao: CachedPostDao
 ) : ViewModel() {
     // 防止同一帖子并发点赞/收藏
     private val likingPostIds = mutableSetOf<String>()
@@ -60,7 +63,7 @@ class PostRepository @Inject constructor(
         )
     }
 
-    // 获取帖子详情
+    // 获取帖子详情：网络失败时回退本地缓存
     suspend fun getPostById(postId: String): Result<Post> {
         val result = postDataSource.getPostById(postId)
         return result.fold(
@@ -68,7 +71,11 @@ class PostRepository @Inject constructor(
                 if (map != null) Result.success(map.toPost())
                 else Result.failure(Exception("帖子不存在"))
             },
-            onFailure = { Result.failure(it) }
+            onFailure = {
+                val cached = cachedPostDao.getPostById(postId)
+                if (cached != null) Result.success(cached.toPost())
+                else Result.failure(it)
+            }
         )
     }
 
@@ -347,6 +354,23 @@ class PostRepository @Inject constructor(
             onFailure = { Result.failure(it) }
         )
     }
+
+    // ── 离线缓存 ────────────────────────────────────────────────────────────
+
+    /** 从本地缓存读取第一页帖子（不含点赞/收藏状态） */
+    suspend fun getCachedPosts(sortByHot: Boolean): List<Post> {
+        val sortType = if (sortByHot) "hot" else "latest"
+        return cachedPostDao.getPostsBySortType(sortType).map { it.toPost() }
+    }
+
+    /** 将网络返回的第一页帖子写入缓存（先清旧再写新） */
+    suspend fun cacheFirstPage(posts: List<Post>, sortByHot: Boolean) {
+        val sortType = if (sortByHot) "hot" else "latest"
+        cachedPostDao.deletePostsBySortType(sortType)
+        cachedPostDao.insertAll(posts.mapIndexed { index, post -> post.toCacheEntity(sortType, index) })
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
 
     suspend fun getUserCollects(
         uid: String,

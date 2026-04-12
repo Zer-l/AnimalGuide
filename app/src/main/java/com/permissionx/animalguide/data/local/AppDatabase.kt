@@ -7,16 +7,26 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.permissionx.animalguide.data.local.entity.AnimalEntry
 import com.permissionx.animalguide.data.local.entity.RecognizeHistory
 import com.permissionx.animalguide.data.local.entity.AnimalPhoto
+import com.permissionx.animalguide.data.local.entity.CachedPostEntity
+import com.permissionx.animalguide.data.local.entity.CachedUserEntity
+import com.permissionx.animalguide.data.local.entity.ChatConversationEntity
+import com.permissionx.animalguide.data.local.entity.ChatMessageEntity
 
 @Database(
-    entities = [AnimalEntry::class, RecognizeHistory::class, AnimalPhoto::class],
-    version = 3,
+    entities = [AnimalEntry::class, RecognizeHistory::class, AnimalPhoto::class,
+        CachedPostEntity::class, CachedUserEntity::class,
+        ChatMessageEntity::class, ChatConversationEntity::class],
+    version = 6,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun animalDao(): AnimalDao
     abstract fun historyDao(): HistoryDao
     abstract fun animalPhotoDao(): AnimalPhotoDao
+    abstract fun cachedPostDao(): CachedPostDao
+    abstract fun cachedUserDao(): CachedUserDao
+    abstract fun chatMessageDao(): ChatMessageDao
+    abstract fun chatConversationDao(): ChatConversationDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -39,6 +49,108 @@ abstract class AppDatabase : RoomDatabase() {
                         animalName TEXT NOT NULL,
                         imageUri TEXT NOT NULL,
                         takenAt INTEGER NOT NULL
+                    )
+                """.trimIndent()
+                )
+            }
+        }
+
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // 重建 chat_messages 表，将 animalName 改为 conversationId
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS chat_messages_new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        conversationId TEXT NOT NULL,
+                        role TEXT NOT NULL,
+                        content TEXT NOT NULL,
+                        timestamp INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "INSERT INTO chat_messages_new SELECT id, animalName, role, content, timestamp FROM chat_messages"
+                )
+                db.execSQL("DROP TABLE chat_messages")
+                db.execSQL("ALTER TABLE chat_messages_new RENAME TO chat_messages")
+
+                // 新建对话会话表
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS chat_conversations (
+                        id TEXT PRIMARY KEY NOT NULL,
+                        title TEXT NOT NULL,
+                        type TEXT NOT NULL,
+                        createdAt INTEGER NOT NULL,
+                        lastMessageAt INTEGER NOT NULL,
+                        previewText TEXT NOT NULL
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS chat_messages (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        animalName TEXT NOT NULL,
+                        role TEXT NOT NULL,
+                        content TEXT NOT NULL,
+                        timestamp INTEGER NOT NULL
+                    )
+                """.trimIndent()
+                )
+            }
+        }
+
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS cached_posts (
+                        id TEXT PRIMARY KEY NOT NULL,
+                        uid TEXT NOT NULL,
+                        nickname TEXT NOT NULL,
+                        avatarUrl TEXT NOT NULL,
+                        type TEXT NOT NULL,
+                        animalName TEXT NOT NULL,
+                        title TEXT NOT NULL,
+                        content TEXT NOT NULL,
+                        imageUrls TEXT NOT NULL,
+                        tags TEXT NOT NULL,
+                        location TEXT NOT NULL,
+                        latitude REAL,
+                        longitude REAL,
+                        likeCount INTEGER NOT NULL,
+                        commentCount INTEGER NOT NULL,
+                        collectCount INTEGER NOT NULL,
+                        coverUrl TEXT NOT NULL,
+                        status TEXT NOT NULL,
+                        createdAt INTEGER NOT NULL,
+                        sortType TEXT NOT NULL,
+                        position INTEGER NOT NULL
+                    )
+                """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS cached_users (
+                        uid TEXT PRIMARY KEY NOT NULL,
+                        nickname TEXT NOT NULL,
+                        avatarUrl TEXT NOT NULL,
+                        backgroundUrl TEXT NOT NULL,
+                        bio TEXT NOT NULL,
+                        phone TEXT NOT NULL,
+                        gender TEXT NOT NULL,
+                        postCount INTEGER NOT NULL,
+                        followCount INTEGER NOT NULL,
+                        followerCount INTEGER NOT NULL,
+                        likeCount INTEGER NOT NULL,
+                        cachedAt INTEGER NOT NULL
                     )
                 """.trimIndent()
                 )

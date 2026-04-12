@@ -72,11 +72,13 @@ class PostDetailViewModel @Inject constructor(
                     _state.value = _state.value.copy(
                         comments = comments,
                         hasMoreComments = hasMore,
-                        isLoading = false
+                        isLoading = false,
+                        isOffline = false
                     )
                 },
                 onFailure = {
-                    _state.value = _state.value.copy(isLoading = false)
+                    // 评论加载失败通常意味着断网，标记离线状态
+                    _state.value = _state.value.copy(isLoading = false, isOffline = true)
                 }
             )
         }

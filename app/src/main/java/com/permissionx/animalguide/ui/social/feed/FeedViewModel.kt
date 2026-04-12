@@ -57,25 +57,43 @@ class FeedViewModel @Inject constructor(
 
     fun loadFirstPage() {
         viewModelScope.launch {
-            _state.value = FeedUiState.Loading
             currentPage = 1
+
+            // Step 1：立即展示本地缓存（如有），避免白屏
+            val cached = postRepository.getCachedPosts(sortByHot)
+            if (cached.isNotEmpty()) {
+                _state.value = FeedUiState.Success(
+                    posts = cached,
+                    hasMore = true,
+                    isOffline = true
+                )
+            } else {
+                _state.value = FeedUiState.Loading
+            }
+
+            // Step 2：从网络加载最新数据
             val result = getFeedUseCase(
                 pageSize = pageSize,
                 pageNumber = currentPage,
                 sortByHot = sortByHot
             )
-            result.onSuccess { (posts, hasMore) ->
-            }
             result.fold(
                 onSuccess = { (posts, hasMore) ->
+                    postRepository.cacheFirstPage(posts, sortByHot)
                     _state.value = if (posts.isEmpty()) {
                         FeedUiState.Empty
                     } else {
-                        FeedUiState.Success(posts = posts, hasMore = hasMore)
+                        FeedUiState.Success(posts = posts, hasMore = hasMore, isOffline = false)
                     }
                 },
                 onFailure = {
-                    _state.value = FeedUiState.Error(it.message ?: "加载失败，请重试")
+                    val current = _state.value as? FeedUiState.Success
+                    if (current != null) {
+                        // 保持缓存展示，标记为离线
+                        _state.value = current.copy(isOffline = true)
+                    } else {
+                        _state.value = FeedUiState.Error(it.message ?: "加载失败，请重试")
+                    }
                 }
             )
         }
@@ -152,6 +170,7 @@ class FeedViewModel @Inject constructor(
             )
             result.fold(
                 onSuccess = { (posts, hasMore) ->
+                    postRepository.cacheFirstPage(posts, sortByHot)
                     _state.value = if (posts.isEmpty()) {
                         FeedUiState.Empty
                     } else {
@@ -159,14 +178,15 @@ class FeedViewModel @Inject constructor(
                             posts = posts,
                             hasMore = hasMore,
                             isRefreshing = false,
-                            justRefreshed = true  // 标记
+                            justRefreshed = true,
+                            isOffline = false
                         )
                     }
                 },
                 onFailure = {
                     val current = _state.value as? FeedUiState.Success
                     if (current != null) {
-                        _state.value = current.copy(isRefreshing = false)
+                        _state.value = current.copy(isRefreshing = false, isOffline = true)
                     }
                 }
             )

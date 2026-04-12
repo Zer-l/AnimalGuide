@@ -65,7 +65,7 @@ fun LoginScreen(
                 navController.popBackStack(Routes.LOGIN, inclusive = true)
                 // 再用底部导航的方式切到 ME
                 navController.navigate(Routes.ME) {
-                    popUpTo(Routes.CAMERA) { saveState = true }
+                    popUpTo(Routes.QA) { saveState = true }
                     launchSingleTop = true
                     restoreState = true
                 }
@@ -119,7 +119,7 @@ fun LoginScreen(
             Text(text = "🦁", fontSize = 64.sp)
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "欢迎来到晓物社区",
+                text = "欢迎来到晓物APP",
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold
             )

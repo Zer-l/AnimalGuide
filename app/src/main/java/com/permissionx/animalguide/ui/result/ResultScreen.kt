@@ -200,7 +200,7 @@ fun ResultScreen(
                         Spacer(modifier = Modifier.height(12.dp))
                         TextButton(onClick = { viewModel.showManualInput() }) {
                             Text(
-                                text = "识别结果不满意？试试手动进行标注",
+                                text = "识别结果不满意？试试手动输入",
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

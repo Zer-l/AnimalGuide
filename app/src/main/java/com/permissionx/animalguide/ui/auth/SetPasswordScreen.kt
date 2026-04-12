@@ -56,7 +56,7 @@ fun SetPasswordScreen(
                 navController.popBackStack(Routes.LOGIN, inclusive = true)
                 // 再切到 ME
                 navController.navigate(Routes.ME) {
-                    popUpTo(Routes.CAMERA) { saveState = true }
+                    popUpTo(Routes.QA) { saveState = true }
                     launchSingleTop = true
                     restoreState = true
                 }

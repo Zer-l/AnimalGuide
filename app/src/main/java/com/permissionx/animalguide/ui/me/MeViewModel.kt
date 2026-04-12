@@ -59,19 +59,29 @@ class MeViewModel @Inject constructor(
             return
         }
 
+        val hasData = _state.value is MeUiState.Success
+
         viewModelScope.launch {
-            _state.value = MeUiState.Loading
+            // 已有数据时不重置为 Loading，静默刷新避免白屏
+            if (!hasData) _state.value = MeUiState.Loading
 
             val profileResult = getUserProfileUseCase(currentUser.uid)
             profileResult.fold(
                 onSuccess = { user ->
-                    _state.value = MeUiState.Success(user = user)
-                    loadMyPosts(currentUser.uid)
+                    val current = _state.value as? MeUiState.Success
+                    if (current != null) {
+                        // 保留已有帖子列表，只更新用户信息
+                        _state.value = current.copy(user = user)
+                    } else {
+                        _state.value = MeUiState.Success(user = user)
+                        loadMyPosts(currentUser.uid)
+                    }
                 },
                 onFailure = {
-                    _state.value = MeUiState.Error(
-                        it.message ?: "加载失败，请重试"
-                    )
+                    // 已有数据时静默失败，不破坏现有展示
+                    if (!hasData) {
+                        _state.value = MeUiState.Error(it.message ?: "加载失败，请重试")
+                    }
                 }
             )
         }

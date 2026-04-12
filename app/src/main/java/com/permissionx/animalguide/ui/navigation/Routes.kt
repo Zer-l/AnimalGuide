@@ -27,6 +27,9 @@ object Routes {
     const val FOLLOWING_LIST = "following_list/{uid}"
     const val FOLLOWER_LIST = "follower_list/{uid}"
     const val ABOUT = "about"
+    const val ANIMAL_CHAT = "animal_chat/{animalName}"
+    const val QA = "qa"
+    const val GENERAL_CHAT = "general_chat/{conversationId}"
 
     // 带参数的跳转方法
     fun pokedexDetail(animalName: String) = "pokedex_detail/${Uri.encode(animalName)}"
@@ -41,4 +44,6 @@ object Routes {
 
     fun followingList(uid: String) = "following_list/$uid"
     fun followerList(uid: String) = "follower_list/$uid"
+    fun animalChat(animalName: String) = "animal_chat/${Uri.encode(animalName)}"
+    fun generalChat(conversationId: String) = "general_chat/$conversationId"
 }
