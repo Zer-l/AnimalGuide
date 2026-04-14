@@ -76,8 +76,7 @@ class RecognizeRepository @Inject constructor(
         val randomAngle = angles.random()
 
         val prompt = """
-            请根据动物名称"$animalName"，以轻松有趣的科普风格生成内容，就像在和朋友聊天一样自然。
-            本次描述角度：$randomAngle。
+            请根据动物名称"$animalName"，生成详细的科普内容。本次描述角度：$randomAngle。
             严格以JSON格式返回，不要返回任何其他内容，不要加markdown代码块。
             conservationStatus字段必须且只能是：LC、NT、VU、EN、CR、DD 之一。
             如果该动物有多个亚种保护级别不同，填写最具代表性的等级。
@@ -85,11 +84,18 @@ class RecognizeRepository @Inject constructor(
             {
               "name": "动物中文名",
               "scientificName": "拉丁学名",
-              "habitat": "用一两句话描述栖息地，要有画面感",
-              "diet": "用有趣的方式描述食性",
-              "lifespan": "寿命描述，可以加对比",
               "conservationStatus": "LC或NT或VU或EN或CR或DD之一",
-              "description": "200字左右的介绍，语气轻松自然，避免堆砌数据。"
+              "description": "100字左右的介绍，语气轻松自然、幽默风趣，不重复下面字段的内容，避免堆砌数据",
+              "taxonomy": "所属科、属，以及常见俗名/别名，如：猫科 豹属；别名：金钱豹、豹子",
+              "distribution": "主要分布的大洲或国家/地区，简洁列举",
+              "habitat": "栖息环境类型，一两句话描述栖息地",
+              "morphology": "体型大小、外观特征、雌雄差异、标志性结构，合并为一段简洁描述",
+              "diet": "食性与主要食物，用有趣的方式描述",
+              "activityPattern": "昼行或夜行、迁徙习惯、觅食方式、繁殖季节与方式、育幼行为，合并描述",
+              "socialBehavior": "独居/群居/领地性等社会行为特征",
+              "lifespan": "寿命描述，可加对比，天敌或主要威胁因素",
+              "ecologicalRole": "在生态系统中的作用、数量现状趋势、与人类的经济/文化/科普关系",
+              "funFacts": "1-2条鲜为人知的趣闻或独特行为"
             }
         """.trimIndent()
 

@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.permissionx.animalguide.data.local.AnimalDao
 import com.permissionx.animalguide.data.local.AnimalPhotoDao
 import com.permissionx.animalguide.data.local.AppDatabase
+import com.permissionx.animalguide.data.local.CachedCommentDao
 import com.permissionx.animalguide.data.local.CachedPostDao
 import com.permissionx.animalguide.data.local.CachedUserDao
 import com.permissionx.animalguide.data.local.ChatConversationDao
@@ -29,7 +30,7 @@ object DatabaseModule {
             AppDatabase::class.java,
             "animal_guide.db"
         )
-            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6)
+            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8)
             .build()
     }
 
@@ -74,5 +75,11 @@ object DatabaseModule {
     @Singleton
     fun provideChatConversationDao(database: AppDatabase): ChatConversationDao {
         return database.chatConversationDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideCachedCommentDao(database: AppDatabase): CachedCommentDao {
+        return database.cachedCommentDao()
     }
 }

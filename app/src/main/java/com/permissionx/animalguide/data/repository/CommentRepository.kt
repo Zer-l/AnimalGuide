@@ -1,5 +1,7 @@
 package com.permissionx.animalguide.data.repository
 
+import com.permissionx.animalguide.data.local.CachedCommentDao
+import com.permissionx.animalguide.data.local.entity.toCacheEntity
 import com.permissionx.animalguide.data.remote.cloudbase.CommentDataSource
 import com.permissionx.animalguide.data.remote.cloudbase.LikeDataSource
 import com.permissionx.animalguide.data.remote.cloudbase.PostDataSource
@@ -15,7 +17,8 @@ class CommentRepository @Inject constructor(
     private val commentDataSource: CommentDataSource,
     private val likeDataSource: LikeDataSource,
     private val postDataSource: PostDataSource,
-    private val userSessionManager: UserSessionManager
+    private val userSessionManager: UserSessionManager,
+    private val cachedCommentDao: CachedCommentDao
 ) {
     // 防止并发操作评论计数
     private val commentCountMutex = kotlinx.coroutines.sync.Mutex()
@@ -35,10 +38,21 @@ class CommentRepository @Inject constructor(
                     } else false
                     comment.copy(isLiked = isLiked)
                 }
+                // 首页成功后更新本地缓存
+                if (pageNumber == 1) cacheComments(postId, comments)
                 Result.success(Pair(comments, hasMore))
             },
             onFailure = { Result.failure(it) }
         )
+    }
+
+    suspend fun getCachedComments(postId: String): List<Comment> {
+        return cachedCommentDao.getCommentsByPostId(postId).map { it.toComment() }
+    }
+
+    private suspend fun cacheComments(postId: String, comments: List<Comment>) {
+        cachedCommentDao.deleteByPostId(postId)
+        cachedCommentDao.insertAll(comments.mapIndexed { index, comment -> comment.toCacheEntity(index) })
     }
 
     // 获取回复列表

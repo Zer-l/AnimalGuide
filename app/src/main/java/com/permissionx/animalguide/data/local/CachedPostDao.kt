@@ -21,4 +21,10 @@ interface CachedPostDao {
     /** 刷新缓存前先清空对应 sortType 的旧数据 */
     @Query("DELETE FROM cached_posts WHERE sortType = :sortType")
     suspend fun deletePostsBySortType(sortType: String)
+
+    @Query("UPDATE cached_posts SET isLiked = :isLiked, likeCount = :likeCount WHERE id = :id")
+    suspend fun updateLikeState(id: String, isLiked: Boolean, likeCount: Int)
+
+    @Query("UPDATE cached_posts SET isCollected = :isCollected, collectCount = :collectCount WHERE id = :id")
+    suspend fun updateCollectState(id: String, isCollected: Boolean, collectCount: Int)
 }

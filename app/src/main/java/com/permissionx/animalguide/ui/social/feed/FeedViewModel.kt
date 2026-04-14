@@ -65,7 +65,7 @@ class FeedViewModel @Inject constructor(
                 _state.value = FeedUiState.Success(
                     posts = cached,
                     hasMore = true,
-                    isOffline = true
+                    isOffline = false
                 )
             } else {
                 _state.value = FeedUiState.Loading

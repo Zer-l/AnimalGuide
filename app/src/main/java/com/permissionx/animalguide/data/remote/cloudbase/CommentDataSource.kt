@@ -25,7 +25,7 @@ class CommentDataSource @Inject constructor(
                 "pageSize" to pageSize,
                 "pageNumber" to pageNumber,
                 "getCount" to true,
-                "orderBy" to listOf(mapOf("createdAt" to "asc")),
+                "orderBy" to listOf(mapOf("likeCount" to "desc"), mapOf("createdAt" to "asc")),
                 "filter" to mapOf(
                     "where" to mapOf(
                         "\$and" to listOf(

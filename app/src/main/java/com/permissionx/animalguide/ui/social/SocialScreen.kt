@@ -130,6 +130,7 @@ fun SocialScreen(
                     isLoggedIn = uiState is SocialUiState.LoggedIn,
                     sortByHot = true,
                     onRequireLogin = { showLoginDialog = true },
+                    onTagClick = { tag -> navController.navigate(Routes.topic(tag)) },
                     viewModel = hiltViewModel(key = "feed_hot")
                 )
 
@@ -138,6 +139,7 @@ fun SocialScreen(
                     isLoggedIn = uiState is SocialUiState.LoggedIn,
                     sortByHot = false,
                     onRequireLogin = { showLoginDialog = true },
+                    onTagClick = { tag -> navController.navigate(Routes.topic(tag)) },
                     viewModel = hiltViewModel(key = "feed_latest")
                 )
             }

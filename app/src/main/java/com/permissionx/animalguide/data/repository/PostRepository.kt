@@ -63,6 +63,37 @@ class PostRepository @Inject constructor(
         )
     }
 
+    // 获取话题帖子列表（按标签过滤）
+    suspend fun getPostsByTag(
+        tag: String,
+        pageSize: Int = 10,
+        pageNumber: Int = 1,
+        sortByHot: Boolean = false
+    ): Result<Pair<List<Post>, Boolean>> {
+        val result = postDataSource.getPosts(pageSize, pageNumber, sortByHot, filterTag = tag)
+        return result.fold(
+            onSuccess = { (records, hasMore) ->
+                val uid = userSessionManager.currentUser.value?.uid
+                val posts = records.map { it.toPost() }
+                val postsWithStatus = if (uid != null) {
+                    coroutineScope {
+                        posts.map { post ->
+                            async {
+                                val isLiked = likeDataSource.isLiked(uid, post.id, "POST")
+                                    .getOrNull() ?: false
+                                val isCollected = collectDataSource.isCollected(uid, post.id)
+                                    .getOrNull() ?: false
+                                post.copy(isLiked = isLiked, isCollected = isCollected)
+                            }
+                        }.map { it.await() }
+                    }
+                } else posts
+                Result.success(Pair(postsWithStatus, hasMore))
+            },
+            onFailure = { Result.failure(it) }
+        )
+    }
+
     // 获取帖子详情：网络失败时回退本地缓存
     suspend fun getPostById(postId: String): Result<Post> {
         val result = postDataSource.getPostById(postId)
@@ -186,6 +217,7 @@ class PostRepository @Inject constructor(
                         val newCount = (post.likeCount - 1).coerceAtLeast(0)
                         kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
                             postDataSource.updatePostCount(post.id, "likeCount", newCount)
+                            cachedPostDao.updateLikeState(post.id, false, newCount)
                             try {
                                 userRepository.updateUserCount(post.uid, "likeCount", -1)
                             } catch (e: Exception) {
@@ -202,6 +234,7 @@ class PostRepository @Inject constructor(
                         val newCount = post.likeCount + 1
                         kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
                             postDataSource.updatePostCount(post.id, "likeCount", newCount)
+                            cachedPostDao.updateLikeState(post.id, true, newCount)
                             try {
                                 userRepository.updateUserCount(post.uid, "likeCount", 1)
                             } catch (e: Exception) {
@@ -232,6 +265,7 @@ class PostRepository @Inject constructor(
                         val newCount = (post.collectCount - 1).coerceAtLeast(0)
                         kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
                             postDataSource.updatePostCount(post.id, "collectCount", newCount)
+                            cachedPostDao.updateCollectState(post.id, false, newCount)
                         }
                         Result.success(post.copy(isCollected = false, collectCount = newCount))
                     },
@@ -244,6 +278,7 @@ class PostRepository @Inject constructor(
                         val newCount = post.collectCount + 1
                         kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
                             postDataSource.updatePostCount(post.id, "collectCount", newCount)
+                            cachedPostDao.updateCollectState(post.id, true, newCount)
                         }
                         Result.success(post.copy(isCollected = true, collectCount = newCount))
                     },
@@ -366,6 +401,23 @@ class PostRepository @Inject constructor(
     /** 将网络返回的第一页帖子写入缓存（先清旧再写新） */
     suspend fun cacheFirstPage(posts: List<Post>, sortByHot: Boolean) {
         val sortType = if (sortByHot) "hot" else "latest"
+        cachedPostDao.deletePostsBySortType(sortType)
+        cachedPostDao.insertAll(posts.mapIndexed { index, post -> post.toCacheEntity(sortType, index) })
+    }
+
+    /** 从本地缓存读取单条帖子（用于详情页缓存优先展示） */
+    suspend fun getCachedPost(postId: String): Post? {
+        return cachedPostDao.getPostById(postId)?.toPost()
+    }
+
+    /** 从本地缓存读取某用户的帖子列表 */
+    suspend fun getCachedUserPosts(uid: String): List<Post> {
+        return cachedPostDao.getPostsBySortType("user_$uid").map { it.toPost() }
+    }
+
+    /** 将用户帖子第一页写入缓存（先清旧再写新） */
+    suspend fun cacheUserPosts(uid: String, posts: List<Post>) {
+        val sortType = "user_$uid"
         cachedPostDao.deletePostsBySortType(sortType)
         cachedPostDao.insertAll(posts.mapIndexed { index, post -> post.toCacheEntity(sortType, index) })
     }

@@ -110,7 +110,14 @@ class UserProfileViewModel @Inject constructor(
         val page = if (reset) 1 else s.postPage
 
         viewModelScope.launch {
-            if (!reset) {
+            if (reset) {
+                // 先展示缓存，避免白屏等待
+                val cached = postRepository.getCachedUserPosts(uid)
+                if (cached.isNotEmpty()) {
+                    val current = _state.value as? UserProfileUiState.Success ?: return@launch
+                    _state.value = current.copy(posts = cached, hasMorePosts = true)
+                }
+            } else {
                 _state.value = s.copy(isLoadingMorePosts = true)
             }
 
@@ -123,6 +130,8 @@ class UserProfileViewModel @Inject constructor(
                     postPage = page + 1,
                     isLoadingMorePosts = false
                 )
+                // 网络成功后更新缓存（仅第一页）
+                if (reset) postRepository.cacheUserPosts(uid, posts)
             }
             result.onFailure {
                 val current = _state.value as? UserProfileUiState.Success ?: return@launch

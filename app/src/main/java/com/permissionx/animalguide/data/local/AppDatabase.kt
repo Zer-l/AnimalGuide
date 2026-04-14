@@ -7,6 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.permissionx.animalguide.data.local.entity.AnimalEntry
 import com.permissionx.animalguide.data.local.entity.RecognizeHistory
 import com.permissionx.animalguide.data.local.entity.AnimalPhoto
+import com.permissionx.animalguide.data.local.entity.CachedCommentEntity
 import com.permissionx.animalguide.data.local.entity.CachedPostEntity
 import com.permissionx.animalguide.data.local.entity.CachedUserEntity
 import com.permissionx.animalguide.data.local.entity.ChatConversationEntity
@@ -15,8 +16,9 @@ import com.permissionx.animalguide.data.local.entity.ChatMessageEntity
 @Database(
     entities = [AnimalEntry::class, RecognizeHistory::class, AnimalPhoto::class,
         CachedPostEntity::class, CachedUserEntity::class,
-        ChatMessageEntity::class, ChatConversationEntity::class],
-    version = 6,
+        ChatMessageEntity::class, ChatConversationEntity::class,
+        CachedCommentEntity::class],
+    version = 8,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -27,6 +29,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun cachedUserDao(): CachedUserDao
     abstract fun chatMessageDao(): ChatMessageDao
     abstract fun chatConversationDao(): ChatConversationDao
+    abstract fun cachedCommentDao(): CachedCommentDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -51,6 +54,47 @@ abstract class AppDatabase : RoomDatabase() {
                         takenAt INTEGER NOT NULL
                     )
                 """.trimIndent()
+                )
+            }
+        }
+
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE pokedex ADD COLUMN taxonomy TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE pokedex ADD COLUMN distribution TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE pokedex ADD COLUMN morphology TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE pokedex ADD COLUMN activityPattern TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE pokedex ADD COLUMN socialBehavior TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE pokedex ADD COLUMN ecologicalRole TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE pokedex ADD COLUMN funFacts TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // cached_posts 新增 isLiked / isCollected 字段
+                db.execSQL("ALTER TABLE cached_posts ADD COLUMN isLiked INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE cached_posts ADD COLUMN isCollected INTEGER NOT NULL DEFAULT 0")
+                // 新增评论缓存表
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS cached_comments (
+                        id TEXT PRIMARY KEY NOT NULL,
+                        postId TEXT NOT NULL,
+                        uid TEXT NOT NULL,
+                        nickname TEXT NOT NULL,
+                        avatarUrl TEXT NOT NULL,
+                        content TEXT NOT NULL,
+                        parentId TEXT NOT NULL,
+                        replyToUid TEXT NOT NULL,
+                        replyToNickname TEXT NOT NULL,
+                        likeCount INTEGER NOT NULL,
+                        replyCount INTEGER NOT NULL,
+                        status TEXT NOT NULL,
+                        createdAt INTEGER NOT NULL,
+                        position INTEGER NOT NULL
+                    )
+                    """.trimIndent()
                 )
             }
         }

@@ -10,6 +10,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.permissionx.animalguide.domain.model.AnimalInfo
+import com.permissionx.animalguide.ui.common.InfoGroup
+import com.permissionx.animalguide.ui.common.InfoParagraph
+import com.permissionx.animalguide.ui.common.InfoRow
 
 @Composable
 fun AnimalInfoCard(
@@ -41,7 +44,7 @@ fun AnimalInfoCard(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // 基本信息卡片
+        // 科普信息卡片
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
@@ -50,40 +53,86 @@ fun AnimalInfoCard(
             )
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                InfoRowIfValid(label = "🏕 栖息地", value = info.habitat)
-                InfoRowIfValid(label = "🍖 食　性", value = info.diet)
-                InfoRowIfValid(label = "⏳ 寿　命", value = info.lifespan)
+                Text(
+                    text = "📚 科普信息",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // 1. 基础信息
+                InfoGroup(title = "基础信息") {
+                    InfoRow("学   　名", info.scientificName)
+                    InfoRow("科   　属", info.taxonomy)
+                    InfoRow("分   　布", info.distribution)
+                }
+
+                // 2. 形态特征
+                if (info.morphology.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    InfoGroup(title = "形态特征") {
+                        InfoParagraph(info.morphology)
+                    }
+                }
+
+                // 3. 生态与行为
+                Spacer(modifier = Modifier.height(10.dp))
+                InfoGroup(title = "生态与行为") {
+                    InfoRow("栖 息 地", info.habitat)
+                    InfoRow("食   　性", info.diet)
+                    InfoRow("活动习性", info.activityPattern)
+                    InfoRow("社会行为", info.socialBehavior)
+                }
+
+                // 4. 保护与价值
+                Spacer(modifier = Modifier.height(10.dp))
+                InfoGroup(title = "保护与价值") {
+                    InfoRow("寿   　命", info.lifespan)
+                    if (info.ecologicalRole.isNotBlank()) {
+                        InfoRow("价   　值", info.ecologicalRole)
+                    }
+                }
+
+                // 5. 趣闻
+                if (info.funFacts.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    InfoGroup(title = "其他信息") {
+                        InfoParagraph(info.funFacts)
+                    }
+                }
             }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // 科普介绍
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-            )
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = "📖 简介",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
+        // 简介
+        if (info.description.isNotBlank()) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                 )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "\t\t\t\t"+info.description,
-                    fontSize = 15.sp,
-                    lineHeight = 24.sp
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                TextButton(
-                    onClick = { onRegenerate(info.name) },
-                    modifier = Modifier.align(Alignment.End)
-                ) {
-                    Text("换个角度介绍", fontSize = 12.sp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "📖 简介",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = info.description,
+                        fontSize = 13.sp,
+                        lineHeight = 24.sp
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    TextButton(
+                        onClick = { onRegenerate(info.name) },
+                        modifier = Modifier.align(Alignment.End)
+                    ) {
+                        Text("换个角度介绍", fontSize = 12.sp)
+                    }
                 }
             }
         }

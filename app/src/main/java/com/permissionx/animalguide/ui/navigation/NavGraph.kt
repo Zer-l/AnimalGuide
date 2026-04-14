@@ -45,6 +45,7 @@ import com.permissionx.animalguide.ui.social.search.SearchScreen
 import com.permissionx.animalguide.ui.chat.AnimalChatScreen
 import com.permissionx.animalguide.ui.chat.GeneralChatScreen
 import com.permissionx.animalguide.ui.qa.QAScreen
+import com.permissionx.animalguide.ui.social.topic.TopicScreen
 
 sealed class BottomNavItem(
     val route: String,
@@ -90,6 +91,7 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
             && currentRoute != Routes.ABOUT
             && currentRoute?.startsWith("animal_chat") == false
             && currentRoute?.startsWith("general_chat") == false
+            && currentRoute?.startsWith("topic") == false
 
     Scaffold(
         bottomBar = {
@@ -294,8 +296,13 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
                 val postId = backStackEntry.arguments?.getString("postId") ?: return@composable
                 PostDetailScreen(
                     postId = postId,
-                    navController = navController
+                    navController = navController,
+                    onTagClick = { tag -> navController.navigate(Routes.topic(tag)) }
                 )
+            }
+
+            composable(route = Routes.TOPIC) { backStackEntry ->
+                TopicScreen(navController = navController)
             }
 
             composable(route = Routes.USER_PROFILE) { backStackEntry ->

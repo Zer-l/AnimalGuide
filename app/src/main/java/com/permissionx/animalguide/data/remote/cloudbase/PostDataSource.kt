@@ -16,7 +16,8 @@ class PostDataSource @Inject constructor(
         pageSize: Int = 10,
         pageNumber: Int = 1,
         sortByHot: Boolean = false,
-        filterUid: String? = null
+        filterUid: String? = null,
+        filterTag: String? = null
     ): Result<Pair<List<Map<String, Any>>, Boolean>> {
         val orderBy = if (sortByHot) {
             listOf(mapOf("likeCount" to "desc"))
@@ -24,11 +25,14 @@ class PostDataSource @Inject constructor(
             listOf(mapOf("createdAt" to "desc"))
         }
 
-        val whereConditions = mutableListOf(
+        val whereConditions = mutableListOf<Map<String, Any>>(
             mapOf("status" to mapOf("\$eq" to "NORMAL"))
         )
         filterUid?.let {
             whereConditions.add(mapOf("uid" to mapOf("\$eq" to it)))
+        }
+        filterTag?.let {
+            whereConditions.add(mapOf("tags" to mapOf("\$in" to listOf(it))))
         }
 
         val filter = if (whereConditions.size == 1) {

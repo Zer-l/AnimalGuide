@@ -31,7 +31,9 @@ data class CachedPostEntity(
     /** "hot" 或 "latest"，区分推荐/最新两个 feed 的缓存 */
     val sortType: String,
     /** 在列表中的排序位置，保证离线时顺序正确 */
-    val position: Int
+    val position: Int,
+    val isLiked: Boolean = false,
+    val isCollected: Boolean = false
 ) {
     fun toPost() = Post(
         id = id,
@@ -56,7 +58,9 @@ data class CachedPostEntity(
             "BLOCKED" -> PostStatus.BLOCKED
             else -> PostStatus.NORMAL
         },
-        createdAt = createdAt
+        createdAt = createdAt,
+        isLiked = isLiked,
+        isCollected = isCollected
     )
 }
 
@@ -81,5 +85,7 @@ fun Post.toCacheEntity(sortType: String, position: Int) = CachedPostEntity(
     status = status.name,
     createdAt = createdAt,
     sortType = sortType,
-    position = position
+    position = position,
+    isLiked = isLiked,
+    isCollected = isCollected
 )

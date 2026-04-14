@@ -27,6 +27,7 @@ fun FeedScreen(
     isLoggedIn: Boolean,
     sortByHot: Boolean,
     onRequireLogin: () -> Unit,
+    onTagClick: ((String) -> Unit)? = null,
     viewModel: FeedViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
@@ -168,7 +169,8 @@ fun FeedScreen(
                             },
                             onUserClick = { uid ->
                                 navController.navigate(Routes.userProfile(uid))
-                            }
+                            },
+                            onTagClick = onTagClick
                         )
                     }
 

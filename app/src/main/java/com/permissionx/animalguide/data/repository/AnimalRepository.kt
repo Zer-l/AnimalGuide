@@ -50,7 +50,14 @@ class AnimalRepository @Inject constructor(
                 lastSeenAt = System.currentTimeMillis(),
                 latitude = latitude,
                 longitude = longitude,
-                isManual = isManual
+                isManual = isManual,
+                taxonomy = info.taxonomy,
+                distribution = info.distribution,
+                morphology = info.morphology,
+                activityPattern = info.activityPattern,
+                socialBehavior = info.socialBehavior,
+                ecologicalRole = info.ecologicalRole,
+                funFacts = info.funFacts
             )
         )
         return existing != null
@@ -65,7 +72,14 @@ class AnimalRepository @Inject constructor(
                 diet = info.diet,
                 lifespan = info.lifespan,
                 conservationStatus = info.conservationStatus,
-                description = info.description
+                description = info.description,
+                taxonomy = info.taxonomy,
+                distribution = info.distribution,
+                morphology = info.morphology,
+                activityPattern = info.activityPattern,
+                socialBehavior = info.socialBehavior,
+                ecologicalRole = info.ecologicalRole,
+                funFacts = info.funFacts
             )
         )
     }

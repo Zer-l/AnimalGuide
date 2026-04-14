@@ -20,5 +20,12 @@ data class AnimalEntry(
     val isManual: Boolean = false,
     val latitude: Double? = null,
     val longitude: Double? = null,
-    val note: String = ""
+    val note: String = "",
+    val taxonomy: String = "",
+    val distribution: String = "",
+    val morphology: String = "",
+    val activityPattern: String = "",
+    val socialBehavior: String = "",
+    val ecologicalRole: String = "",
+    val funFacts: String = ""
 )

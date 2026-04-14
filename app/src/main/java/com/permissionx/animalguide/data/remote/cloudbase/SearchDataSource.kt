@@ -31,7 +31,8 @@ class SearchDataSource @Inject constructor(
                             mapOf(
                                 "\$or" to listOf(
                                     mapOf("title" to mapOf("\$search" to keyword)),
-                                    mapOf("content" to mapOf("\$search" to keyword))
+                                    mapOf("content" to mapOf("\$search" to keyword)),
+                                    mapOf("tags" to mapOf("\$in" to listOf(keyword)))
                                 )
                             )
                         )

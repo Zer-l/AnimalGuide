@@ -26,7 +26,9 @@ import com.permissionx.animalguide.ui.common.FullScreenImageViewer
 @Composable
 fun PostDetailHeader(
     post: Post,
-    currentUserId: String?
+    currentUserId: String?,
+    onTagClick: ((String) -> Unit)? = null,
+    highlightTag: String? = null
 ) {
     var showImageViewer by remember { mutableStateOf(false) }
     var selectedImageIndex by remember { mutableIntStateOf(0) }
@@ -123,14 +125,24 @@ fun PostDetailHeader(
                 Spacer(modifier = Modifier.height(12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     post.tags.forEach { tag ->
+                        val isHighlighted = tag == highlightTag
                         Surface(
                             shape = RoundedCornerShape(20.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant
+                            color = if (isHighlighted)
+                                MaterialTheme.colorScheme.primaryContainer
+                            else
+                                MaterialTheme.colorScheme.surfaceVariant,
+                            modifier = if (onTagClick != null)
+                                Modifier.clickable { onTagClick(tag) }
+                            else Modifier
                         ) {
                             Text(
                                 text = "#$tag",
                                 fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.primary,
+                                color = if (isHighlighted)
+                                    MaterialTheme.colorScheme.primary
+                                else
+                                    MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                             )
                         }

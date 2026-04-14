@@ -30,6 +30,7 @@ object Routes {
     const val ANIMAL_CHAT = "animal_chat/{animalName}"
     const val QA = "qa"
     const val GENERAL_CHAT = "general_chat/{conversationId}"
+    const val TOPIC = "topic/{tag}"
 
     // 带参数的跳转方法
     fun pokedexDetail(animalName: String) = "pokedex_detail/${Uri.encode(animalName)}"
@@ -46,4 +47,5 @@ object Routes {
     fun followerList(uid: String) = "follower_list/$uid"
     fun animalChat(animalName: String) = "animal_chat/${Uri.encode(animalName)}"
     fun generalChat(conversationId: String) = "general_chat/$conversationId"
+    fun topic(tag: String) = "topic/${Uri.encode(tag)}"
 }

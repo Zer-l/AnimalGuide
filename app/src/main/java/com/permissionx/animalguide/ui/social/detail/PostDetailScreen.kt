@@ -35,6 +35,7 @@ import com.permissionx.animalguide.ui.navigation.Routes
 fun PostDetailScreen(
     postId: String,
     navController: NavController,
+    onTagClick: ((String) -> Unit)? = null,
     viewModel: PostDetailViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
@@ -266,6 +267,7 @@ fun PostDetailScreen(
                         PostDetailHeader(
                             post = state.post!!,
                             currentUserId = viewModel.currentUserId,
+                            onTagClick = onTagClick
                         )
                     }
 

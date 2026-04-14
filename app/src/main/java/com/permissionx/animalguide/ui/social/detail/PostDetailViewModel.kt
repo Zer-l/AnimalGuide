@@ -2,6 +2,8 @@ package com.permissionx.animalguide.ui.social.detail
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import com.permissionx.animalguide.data.remote.cloudbase.LikeDataSource
 import com.permissionx.animalguide.data.remote.cloudbase.UserSessionManager
 import com.permissionx.animalguide.data.repository.CommentRepository
@@ -36,22 +38,30 @@ class PostDetailViewModel @Inject constructor(
     val currentUserId get() = userSessionManager.currentUser.value?.uid
 
     private var currentCommentPage = 1
+    private var pollingJob: Job? = null
 
     fun loadPost(postId: String) {
         viewModelScope.launch {
-            _state.value = _state.value.copy(isLoading = true, error = null)
+            // Step 1: 先查缓存，有则立即展示，无则显示 Loading
+            val cached = postRepository.getCachedPost(postId)
+            if (cached != null) {
+                _state.value = _state.value.copy(post = cached, isLoading = false, error = null)
+            } else {
+                _state.value = _state.value.copy(isLoading = true, error = null)
+            }
 
+            // Step 2: 始终后台刷新网络数据
             val postResult = postRepository.getPostWithStatus(postId)
             postResult.onFailure {
-                _state.value = _state.value.copy(
-                    isLoading = false,
-                    error = it.message ?: "加载失败"
-                )
+                // 有缓存时静默失败，无缓存时展示错误
+                if (cached == null) {
+                    _state.value = _state.value.copy(isLoading = false, error = it.message ?: "加载失败")
+                }
                 return@launch
             }
 
             val post = postResult.getOrNull()!!
-            _state.value = _state.value.copy(post = post)
+            _state.value = _state.value.copy(post = post, isLoading = false)
 
             // 加载关注状态
             if (post.uid != currentUserId) {
@@ -60,12 +70,24 @@ class PostDetailViewModel @Inject constructor(
             }
 
             loadComments(postId)
+            startPolling(postId)
         }
     }
 
     private fun loadComments(postId: String) {
         viewModelScope.launch {
             currentCommentPage = 1
+
+            // 先展示缓存评论，避免白屏
+            val cached = commentRepository.getCachedComments(postId)
+            if (cached.isNotEmpty()) {
+                _state.value = _state.value.copy(
+                    comments = cached,
+                    isLoading = false
+                )
+            }
+
+            // 后台刷新网络评论
             val result = getCommentsUseCase(postId, currentCommentPage)
             result.fold(
                 onSuccess = { (comments, hasMore) ->
@@ -82,6 +104,37 @@ class PostDetailViewModel @Inject constructor(
                 }
             )
         }
+    }
+
+    private fun startPolling(postId: String) {
+        pollingJob?.cancel()
+        pollingJob = viewModelScope.launch {
+            while (true) {
+                delay(60_000L)
+                silentRefreshComments(postId)
+            }
+        }
+    }
+
+    private suspend fun silentRefreshComments(postId: String) {
+        val result = getCommentsUseCase(postId, 1)
+        result.onSuccess { (newComments, hasMore) ->
+            val current = _state.value
+            val hasNewContent = newComments.size != current.comments.size ||
+                    newComments.firstOrNull()?.id != current.comments.firstOrNull()?.id
+            if (hasNewContent) {
+                _state.value = current.copy(
+                    comments = newComments,
+                    hasMoreComments = hasMore,
+                    isOffline = false
+                )
+            }
+        }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        pollingJob?.cancel()
     }
 
     fun loadMoreComments() {

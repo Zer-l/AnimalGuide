@@ -90,10 +90,20 @@ class MeViewModel @Inject constructor(
     private fun loadMyPosts(uid: String) {
         viewModelScope.launch {
             currentPageMyPosts = 1
+
+            // 先展示缓存，避免白屏等待
+            val cached = postRepository.getCachedUserPosts(uid)
+            if (cached.isNotEmpty()) {
+                val s = _state.value as? MeUiState.Success ?: return@launch
+                _state.value = s.copy(posts = cached, hasMorePosts = true, selectedTab = 0)
+            }
+
+            // 后台刷新网络数据
             val result = getUserPostsUseCase(uid, currentPageMyPosts)
             result.onSuccess { (posts, hasMore) ->
                 val s = _state.value as? MeUiState.Success ?: return@onSuccess
                 _state.value = s.copy(posts = posts, hasMorePosts = hasMore, selectedTab = 0)
+                postRepository.cacheUserPosts(uid, posts)
             }
         }
     }

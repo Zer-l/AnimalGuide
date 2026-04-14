@@ -33,7 +33,9 @@ fun PostCard(
     onLike: () -> Unit,
     onComment: () -> Unit,
     onCollect: () -> Unit,
-    onUserClick: ((String) -> Unit)? = null  // 新增，默认null保持兼容
+    onUserClick: ((String) -> Unit)? = null,
+    onTagClick: ((String) -> Unit)? = null,
+    highlightTag: String? = null
 ) {
     Card(
         modifier = Modifier
@@ -154,18 +156,25 @@ fun PostCard(
             if (post.tags.isNotEmpty()) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     post.tags.take(3).forEach { tag ->
+                        val isHighlighted = tag == highlightTag
                         Surface(
                             shape = RoundedCornerShape(20.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant
+                            color = if (isHighlighted)
+                                MaterialTheme.colorScheme.primaryContainer
+                            else
+                                MaterialTheme.colorScheme.surfaceVariant,
+                            modifier = if (onTagClick != null)
+                                Modifier.clickable { onTagClick(tag) }
+                            else Modifier
                         ) {
                             Text(
                                 text = "#$tag",
                                 fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(
-                                    horizontal = 8.dp,
-                                    vertical = 3.dp
-                                )
+                                color = if (isHighlighted)
+                                    MaterialTheme.colorScheme.primary
+                                else
+                                    MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                             )
                         }
                     }

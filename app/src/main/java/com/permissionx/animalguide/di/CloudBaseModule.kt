@@ -141,9 +141,10 @@ object CloudBaseModule {
         commentDataSource: CommentDataSource,
         likeDataSource: LikeDataSource,
         postDataSource: PostDataSource,
-        userSessionManager: UserSessionManager
+        userSessionManager: UserSessionManager,
+        cachedCommentDao: com.permissionx.animalguide.data.local.CachedCommentDao
     ): CommentRepository = CommentRepository(
-        commentDataSource, likeDataSource, postDataSource, userSessionManager
+        commentDataSource, likeDataSource, postDataSource, userSessionManager, cachedCommentDao
     )
 
     @Provides
