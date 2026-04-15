@@ -4,7 +4,7 @@ import com.permissionx.animalguide.data.repository.PostRepository
 import com.permissionx.animalguide.domain.model.social.Post
 import javax.inject.Inject
 
-class GetFeedUseCase @Inject constructor(
+open class GetFeedUseCase @Inject constructor(
     private val postRepository: PostRepository
 ) {
     suspend operator fun invoke(

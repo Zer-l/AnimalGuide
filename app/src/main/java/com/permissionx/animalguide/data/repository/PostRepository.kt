@@ -19,7 +19,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 
 @Singleton
-class PostRepository @Inject constructor(
+open class PostRepository @Inject constructor(
     private val postDataSource: PostDataSource,
     private val likeDataSource: LikeDataSource,
     private val collectDataSource: CollectDataSource,

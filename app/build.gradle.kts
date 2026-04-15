@@ -14,15 +14,37 @@ if (localPropertiesFile.exists()) {
     localProperties.load(localPropertiesFile.inputStream())
 }
 
+// 读取 keystore.properties（本地签名）
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(keystorePropertiesFile.inputStream())
+}
+
 android {
     namespace = "com.permissionx.animalguide"
     compileSdk = 35
+
+    // Release 签名：优先读环境变量（CI），其次读 keystore.properties（本地）
+    signingConfigs {
+        create("release") {
+            val storePath = System.getenv("KEYSTORE_FILE")
+                ?: keystoreProperties["storeFile"] as? String
+            if (storePath != null) storeFile = rootProject.file(storePath)
+            storePassword = System.getenv("KEYSTORE_PASSWORD")
+                ?: keystoreProperties["storePassword"] as? String ?: ""
+            keyAlias = System.getenv("KEY_ALIAS")
+                ?: keystoreProperties["keyAlias"] as? String ?: ""
+            keyPassword = System.getenv("KEY_PASSWORD")
+                ?: keystoreProperties["keyPassword"] as? String ?: ""
+        }
+    }
 
     defaultConfig {
         applicationId = "com.permissionx.animalguide"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
+        versionCode = 2
         versionName = "1.2"
 
         buildConfigField("String", "BAIDU_API_KEY", "\"${localProperties["BAIDU_API_KEY"]}\"")
@@ -49,8 +71,9 @@ android {
         }
         release {
             isDebuggable = false
-            isMinifyEnabled = false
-            isShrinkResources = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -140,4 +163,16 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
 
     implementation("com.github.yalantis:ucrop:2.2.10")
+
+    // 加密存储（用于 UserSessionManager 的 Token 加密）
+    implementation("androidx.security:security-crypto:1.0.0")
+
+    // Test
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
+    testImplementation("io.mockk:mockk:1.13.12")
+}
+
+android.testOptions.unitTests.all {
+    it.maxHeapSize = "2048m"
 }

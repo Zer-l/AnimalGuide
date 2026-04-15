@@ -4,7 +4,7 @@ import com.permissionx.animalguide.data.repository.CommentRepository
 import com.permissionx.animalguide.domain.model.social.Comment
 import javax.inject.Inject
 
-class GetCommentsUseCase @Inject constructor(
+open class GetCommentsUseCase @Inject constructor(
     private val commentRepository: CommentRepository
 ) {
     suspend operator fun invoke(

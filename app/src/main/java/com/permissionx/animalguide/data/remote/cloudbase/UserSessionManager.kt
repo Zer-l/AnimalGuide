@@ -1,6 +1,8 @@
 package com.permissionx.animalguide.data.remote.cloudbase
 
 import android.content.Context
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKeys
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,11 +21,21 @@ data class CurrentUser(
 )
 
 @Singleton
-class UserSessionManager @Inject constructor(
+open class UserSessionManager @Inject constructor(
     @ApplicationContext private val context: Context,
     private val cloudBaseClient: CloudBaseClient
 ) {
-    private val prefs = context.getSharedPreferences("user_session", Context.MODE_PRIVATE)
+    // Token 等敏感信息使用加密存储，防止 root 设备或 adb backup 泄露
+    private val prefs by lazy {
+        val masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
+        EncryptedSharedPreferences.create(
+            "user_session_enc",
+            masterKeyAlias,
+            context,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+    }
 
     private val _currentUser = MutableStateFlow<CurrentUser?>(restoreSession())
     val currentUser: StateFlow<CurrentUser?> = _currentUser.asStateFlow()

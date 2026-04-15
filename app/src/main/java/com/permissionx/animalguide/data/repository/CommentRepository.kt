@@ -13,7 +13,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class CommentRepository @Inject constructor(
+open class CommentRepository @Inject constructor(
     private val commentDataSource: CommentDataSource,
     private val likeDataSource: LikeDataSource,
     private val postDataSource: PostDataSource,

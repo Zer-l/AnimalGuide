@@ -14,7 +14,7 @@ data class FollowUserItem(
 )
 
 @Singleton
-class FollowRepository @Inject constructor(
+open class FollowRepository @Inject constructor(
     private val followDataSource: FollowDataSource,
     private val userDataSource: UserDataSource,
     private val userSessionManager: UserSessionManager
