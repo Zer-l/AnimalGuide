@@ -152,7 +152,7 @@ fun PokedexScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     } else {
-                        Text("🦁", fontSize = 64.sp)
+                        Text("🐼", fontSize = 64.sp)
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(
                             text = "还没有收录任何动物",
@@ -161,7 +161,7 @@ fun PokedexScreen(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "去拍摄动物并收录进图鉴吧！",
+                            text = "去拍摄动物并收录吧！",
                             fontSize = 14.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                         )

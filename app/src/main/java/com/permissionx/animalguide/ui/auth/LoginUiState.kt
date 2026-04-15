@@ -5,7 +5,7 @@ sealed class LoginUiState {
     object SendingCode : LoginUiState()
     object CodeSent : LoginUiState()
     object Verifying : LoginUiState()
-    object LoggingIn : LoginUiState()  // 密码登录中
+    object LoggingIn : LoginUiState()
     data class NewUser(
         val phone: String,
         val verificationToken: String

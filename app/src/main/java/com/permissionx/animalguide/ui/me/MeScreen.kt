@@ -139,7 +139,7 @@ fun MeScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("🦁", fontSize = 64.sp)
+                                    Text("🐼", fontSize = 64.sp)
                                     Spacer(modifier = Modifier.height(16.dp))
                                     Text(
                                         text = "登录后查看个人主页",

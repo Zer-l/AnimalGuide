@@ -104,7 +104,7 @@ fun PostCard(
 //                        color = MaterialTheme.colorScheme.primaryContainer
 //                    ) {
 //                        Text(
-//                            text = "🦁 ${post.animalName}",
+//                            text = "🐼 ${post.animalName}",
 //                            fontSize = 11.sp,
 //                            color = MaterialTheme.colorScheme.onPrimaryContainer,
 //                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)

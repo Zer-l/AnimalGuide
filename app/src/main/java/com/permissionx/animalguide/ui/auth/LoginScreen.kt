@@ -3,6 +3,7 @@ package com.permissionx.animalguide.ui.auth
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -12,8 +13,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -25,10 +29,6 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.permissionx.animalguide.data.remote.cloudbase.AuthValidator
 import com.permissionx.animalguide.ui.navigation.Routes
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.text.input.ImeAction
 
 
 @Composable
@@ -46,14 +46,13 @@ fun LoginScreen(
     var code by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
-    var selectedTab by remember { mutableIntStateOf(0) }  // 0=验证码 1=密码
+    var isCodeMode by remember { mutableStateOf(false) }
 
     val isLoading = state is LoginUiState.SendingCode
             || state is LoginUiState.Verifying
             || state is LoginUiState.LoggingIn
 
     var navigated by remember { mutableStateOf(false) }
-
     val nextFieldFocusRequester = remember { FocusRequester() }
 
     LaunchedEffect(state) {
@@ -61,9 +60,7 @@ fun LoginScreen(
         when (val s = state) {
             is LoginUiState.Success -> {
                 navigated = true
-                // 先弹出登录页
                 navController.popBackStack(Routes.LOGIN, inclusive = true)
-                // 再用底部导航的方式切到 ME
                 navController.navigate(Routes.ME) {
                     popUpTo(Routes.QA) { saveState = true }
                     launchSingleTop = true
@@ -77,7 +74,6 @@ fun LoginScreen(
             }
 
             is LoginUiState.Idle -> {
-                // 重置 navigated，允许重新导航
                 navigated = false
             }
 
@@ -85,7 +81,6 @@ fun LoginScreen(
         }
     }
 
-    // 监听返回栈变化，重置状态
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     LaunchedEffect(currentBackStackEntry?.destination?.route) {
         if (currentBackStackEntry?.destination?.route == Routes.LOGIN) {
@@ -94,10 +89,7 @@ fun LoginScreen(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-    ) {
+    Column(modifier = Modifier.fillMaxSize()) {
         IconButton(
             onClick = { navController.popBackStack() },
             modifier = Modifier.padding(8.dp)
@@ -116,24 +108,17 @@ fun LoginScreen(
         ) {
             Spacer(modifier = Modifier.height(32.dp))
 
-            Text(text = "🦁", fontSize = 64.sp)
+            Text(text = "🐼", fontSize = 64.sp)
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "欢迎来到晓物APP",
+                text = "欢迎来到晓物",
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold
             )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "用手机号登录，探索动物的世界",
-                fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center
-            )
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(40.dp))
 
-            // 手机号输入框
+            // 手机号
             OutlinedTextField(
                 value = phone,
                 onValueChange = {
@@ -146,47 +131,33 @@ fun LoginScreen(
                 placeholder = { Text("请输入手机号") },
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Phone,
-                    imeAction = ImeAction.Next  // 新增
+                    imeAction = ImeAction.Next
                 ),
                 keyboardActions = KeyboardActions(
-                    onNext = { nextFieldFocusRequester.requestFocus() }  // 新增
+                    onNext = { nextFieldFocusRequester.requestFocus() }
                 ),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
-                isError = phoneError.isNotEmpty(),
                 supportingText = {
                     if (phoneError.isNotEmpty()) {
-                        Text(phoneError, color = MaterialTheme.colorScheme.error)
+                        Text(
+                            text = phoneError,
+                            color = MaterialTheme.colorScheme.error,
+                            fontSize = 13.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(4.dp)
+                        )
                     }
                 }
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
-            // Tab 切换
-            TabRow(selectedTabIndex = selectedTab) {
-                Tab(
-                    selected = selectedTab == 0,
-                    onClick = {
-                        selectedTab = 0
-                        viewModel.resetError()
-                    },
-                    text = { Text("验证码登录") }
-                )
-                Tab(
-                    selected = selectedTab == 1,
-                    onClick = {
-                        selectedTab = 1
-                        viewModel.resetError()
-                    },
-                    text = { Text("密码登录") }
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            if (selectedTab == 0) {
+            // 验证码 / 密码
+            if (isCodeMode) {
                 OutlinedTextField(
                     value = code,
                     onValueChange = { if (it.length <= 6) code = it },
@@ -194,7 +165,7 @@ fun LoginScreen(
                     placeholder = { Text("请输入6位验证码") },
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Number,
-                        imeAction = ImeAction.Done  // 新增
+                        imeAction = ImeAction.Done
                     ),
                     keyboardActions = KeyboardActions(
                         onDone = {
@@ -206,7 +177,7 @@ fun LoginScreen(
                     singleLine = true,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .focusRequester(nextFieldFocusRequester),  // 新增
+                        .focusRequester(nextFieldFocusRequester),
                     shape = RoundedCornerShape(12.dp),
                     trailingIcon = {
                         TextButton(
@@ -240,7 +211,7 @@ fun LoginScreen(
                     singleLine = true,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .focusRequester(nextFieldFocusRequester),  // 新增
+                        .focusRequester(nextFieldFocusRequester),
                     shape = RoundedCornerShape(12.dp),
                     visualTransformation = if (passwordVisible)
                         VisualTransformation.None
@@ -248,7 +219,7 @@ fun LoginScreen(
                         PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Password,
-                        imeAction = ImeAction.Done  // 新增
+                        imeAction = ImeAction.Done
                     ),
                     keyboardActions = KeyboardActions(
                         onDone = {
@@ -273,11 +244,13 @@ fun LoginScreen(
 
             // 错误提示
             if (state is LoginUiState.Error) {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = (state as LoginUiState.Error).message,
                     color = MaterialTheme.colorScheme.error,
-                    fontSize = 13.sp
+                    fontSize = 13.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
 
@@ -286,7 +259,7 @@ fun LoginScreen(
             // 登录按钮
             Button(
                 onClick = {
-                    if (selectedTab == 0) {
+                    if (isCodeMode) {
                         viewModel.loginWithCode(phone, code)
                     } else {
                         viewModel.loginWithPassword(phone, password)
@@ -296,7 +269,7 @@ fun LoginScreen(
                     .fillMaxWidth()
                     .height(52.dp),
                 shape = RoundedCornerShape(12.dp),
-                enabled = if (selectedTab == 0) {
+                enabled = if (isCodeMode) {
                     phone.length == 11 && code.length == 6 && !isLoading
                 } else {
                     phone.length == 11 && password.isNotBlank() && !isLoading
@@ -310,24 +283,52 @@ fun LoginScreen(
                     )
                 } else {
                     Text(
-                        text = if (selectedTab == 0) "登录 / 注册" else "登录",
+                        text = if (isCodeMode) "登录 / 注册" else "登录",
                         fontSize = 16.sp
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            // 验证码模式提示 + 切换链接
+            if (isCodeMode) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "未注册的手机号验证后将自动创建账号",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+                TextButton(onClick = {
+                    isCodeMode = false
+                    viewModel.resetError()
+                }) {
+                    Text(
+                        "密码登录",
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            } else {
+                TextButton(onClick = {
+                    isCodeMode = true
+                    viewModel.resetError()
+                }) {
+                    Text("验证码登录", color = MaterialTheme.colorScheme.primary)
+                }
+            }
 
             // 游客模式
             TextButton(
                 onClick = {
                     navController.navigate(Routes.SOCIAL) {
-                        popUpTo(Routes.LOGIN) { inclusive = true }
+                        popUpTo(Routes.QA) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
                     }
-                }
+                },
+                modifier = Modifier.align(Alignment.End)
             ) {
                 Text(
-                    text = "暂不登录，先逛逛",
+                    text = "暂不登录",
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }

@@ -58,7 +58,7 @@ fun AboutScreen(navController: NavController) {
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(text = "🦁", fontSize = 72.sp)
+            Text(text = "🐼", fontSize = 72.sp)
 
             Spacer(modifier = Modifier.height(12.dp))
 

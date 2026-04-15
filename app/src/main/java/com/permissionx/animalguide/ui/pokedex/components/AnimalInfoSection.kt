@@ -90,11 +90,11 @@ fun AnimalInfoSection(
                 }
             }
 
-            // 5. 趣闻
-            if (animal.funFacts.isNotBlank()) {
+            // 5. 科研价值
+            if (animal.researchValue.isNotBlank()) {
                 Spacer(modifier = Modifier.height(10.dp))
-                InfoGroup(title = "其他信息") {
-                    InfoParagraph(animal.funFacts)
+                InfoGroup(title = "科研价值") {
+                    InfoParagraph(animal.researchValue)
                 }
             }
         }

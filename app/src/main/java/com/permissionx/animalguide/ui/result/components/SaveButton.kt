@@ -22,7 +22,7 @@ fun SaveButton(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 enabled = false
-            ) { Text("✅ 已更新图鉴记录") }
+            ) { Text("✅ 已更新") }
         }
         isSaved -> {
             OutlinedButton(
@@ -30,21 +30,21 @@ fun SaveButton(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 enabled = false
-            ) { Text("✅ 已收录进图鉴") }
+            ) { Text("✅ 已收录") }
         }
         isAlreadyExists -> {
             Button(
                 onClick = onSave,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp)
-            ) { Text("🔄 更新图鉴记录") }
+            ) { Text("🔄 更新记录") }
         }
         else -> {
             Button(
                 onClick = onSave,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp)
-            ) { Text("📖 收录进图鉴") }
+            ) { Text("📖 收录") }
         }
     }
 }

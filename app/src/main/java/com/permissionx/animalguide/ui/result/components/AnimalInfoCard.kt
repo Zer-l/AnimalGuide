@@ -93,11 +93,11 @@ fun AnimalInfoCard(
                     }
                 }
 
-                // 5. 趣闻
-                if (info.funFacts.isNotBlank()) {
+                // 5. 科研价值
+                if (info.researchValue.isNotBlank()) {
                     Spacer(modifier = Modifier.height(10.dp))
-                    InfoGroup(title = "其他信息") {
-                        InfoParagraph(info.funFacts)
+                    InfoGroup(title = "科研价值") {
+                        InfoParagraph(info.researchValue)
                     }
                 }
             }
@@ -126,20 +126,21 @@ fun AnimalInfoCard(
                         fontSize = 13.sp,
                         lineHeight = 24.sp
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    TextButton(
-                        onClick = { onRegenerate(info.name) },
-                        modifier = Modifier.align(Alignment.End)
-                    ) {
-                        Text("换个角度介绍", fontSize = 12.sp)
-                    }
                 }
             }
         }
 
+        Spacer(modifier = Modifier.height(4.dp))
+        TextButton(
+            onClick = { onRegenerate(info.name) },
+            modifier = Modifier.align(Alignment.End)
+        ) {
+            Text("换个角度介绍", fontSize = 12.sp)
+        }
+
         // 其他候选
         if (otherResults.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             OtherResultsCard(
                 otherResults = otherResults,
                 showOthers = showOthers,
