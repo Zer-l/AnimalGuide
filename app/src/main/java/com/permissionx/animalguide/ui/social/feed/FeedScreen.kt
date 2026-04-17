@@ -37,6 +37,15 @@ fun FeedScreen(
         viewModel.init(sortByHot)
     }
 
+//    // 登录状态变化时静默刷新（更新点赞/收藏状态），跳过首次构成
+//    var prevLoggedIn by remember { mutableStateOf<Boolean?>(null) }
+//    LaunchedEffect(isLoggedIn) {
+//        if (prevLoggedIn != null && prevLoggedIn != isLoggedIn) {
+//            viewModel.refresh()
+//        }
+//        prevLoggedIn = isLoggedIn
+//    }
+
     val justRefreshed = (state as? FeedUiState.Success)?.justRefreshed ?: false
     LaunchedEffect(justRefreshed) {
         if (justRefreshed) {
@@ -72,18 +81,22 @@ fun FeedScreen(
                 onRefresh = { viewModel.refresh() },
                 modifier = Modifier.fillMaxSize()
             ) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("🌿", fontSize = 48.sp)
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "还没有帖子，快来发第一篇吧！",
-                            fontSize = 16.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    item {
+                        Box(
+                            modifier = Modifier.fillParentMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("🌿", fontSize = 48.sp)
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    text = "还没有帖子，快来发第一篇吧！",
+                                    fontSize = 16.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
                     }
                 }
             }

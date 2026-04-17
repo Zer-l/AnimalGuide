@@ -108,7 +108,7 @@ class ResultViewModel @Inject constructor(
                     latitude = locationResult?.latitude,
                     longitude = locationResult?.longitude
                 )
-                _state.value = ResultUiState.Error("未识别到动物，请换一张更清晰的图片重试")
+                _state.value = ResultUiState.Error("识别失败，请重试")
                 return@launch
             }
 

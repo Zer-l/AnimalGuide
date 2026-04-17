@@ -92,7 +92,6 @@ fun LoginScreen(
     Column(modifier = Modifier.fillMaxSize()) {
         IconButton(
             onClick = { navController.popBackStack() },
-            modifier = Modifier.padding(8.dp)
         ) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,

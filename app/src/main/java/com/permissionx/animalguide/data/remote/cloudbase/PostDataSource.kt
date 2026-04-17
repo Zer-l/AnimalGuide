@@ -153,4 +153,88 @@ class PostDataSource @Inject constructor(
             onFailure = { Result.failure(Exception("操作失败，请稍后重试")) }
         )
     }
+
+    // 注销时用：先读当前值再写 max(0, current-1)，同时返回帖子作者 uid（供调用方更新获赞数）
+    suspend fun decrementPostField(postId: String, field: String): Result<String?> {
+        val listResult = client.request<Map<String, Any>>(
+            method = "POST",
+            path = "/v1/model/$ENV_TYPE/$MODEL/list",
+            body = mapOf(
+                "pageSize" to 1,
+                "pageNumber" to 1,
+                "filter" to mapOf("where" to mapOf("_id" to mapOf("\$eq" to postId)))
+            ),
+            typeToken = object : TypeToken<Map<String, Any>>() {}
+        )
+        listResult.onFailure { return Result.success(null) }
+        val records = ((listResult.getOrNull()?.get("data") as? Map<*, *>)
+            ?.get("records") as? List<*>) ?: return Result.success(null)
+        val post = records.firstOrNull() as? Map<*, *> ?: return Result.success(null)
+        val authorUid = post["uid"] as? String
+        val current = (post[field] as? Double)?.toInt() ?: 0
+        updatePostCount(postId, field, maxOf(0, current - 1))
+        return Result.success(authorUid)
+    }
+
+    // 注销时用：一次性减少 count 条评论对应的 commentCount
+    suspend fun decrementPostCommentCount(postId: String, count: Int): Result<Unit> {
+        val listResult = client.request<Map<String, Any>>(
+            method = "POST",
+            path = "/v1/model/$ENV_TYPE/$MODEL/list",
+            body = mapOf(
+                "pageSize" to 1,
+                "pageNumber" to 1,
+                "filter" to mapOf("where" to mapOf("_id" to mapOf("\$eq" to postId)))
+            ),
+            typeToken = object : TypeToken<Map<String, Any>>() {}
+        )
+        listResult.onFailure { return Result.success(Unit) }
+        val records = ((listResult.getOrNull()?.get("data") as? Map<*, *>)
+            ?.get("records") as? List<*>) ?: return Result.success(Unit)
+        val post = records.firstOrNull() as? Map<*, *> ?: return Result.success(Unit)
+        val current = (post["commentCount"] as? Double)?.toInt() ?: 0
+        updatePostCount(postId, "commentCount", maxOf(0, current - count))
+        return Result.success(Unit)
+    }
+
+    suspend fun deleteUserPosts(uid: String): Result<Unit> {
+        // 分页查出该用户所有帖子的 _id，再逐个按 _id 删除
+        // （安全规则按 _id 逐条校验 _openid，批量过滤不生效）
+        var pageNumber = 1
+        val postIds = mutableListOf<String>()
+
+        while (true) {
+            val result = client.request<Map<String, Any>>(
+                method = "POST",
+                path = "/v1/model/$ENV_TYPE/$MODEL/list",
+                body = mapOf(
+                    "pageSize" to 50,
+                    "pageNumber" to pageNumber,
+                    "filter" to mapOf(
+                        "where" to mapOf("uid" to mapOf("\$eq" to uid))
+                    )
+                ),
+                typeToken = object : TypeToken<Map<String, Any>>() {}
+            )
+            result.onFailure { return Result.failure(it) }
+
+            val data = (result.getOrNull()?.get("data") as? Map<*, *>) ?: break
+            val records = (data["records"] as? List<*>) ?: break
+            if (records.isEmpty()) break
+
+            records.filterIsInstance<Map<String, Any>>().forEach { record ->
+                (record["_id"] as? String)?.let { postIds.add(it) }
+            }
+
+            val total = (data["total"] as? Double)?.toInt() ?: 0
+            if (postIds.size >= total) break
+            pageNumber++
+        }
+
+        for (postId in postIds) {
+            deletePost(postId).onFailure { return Result.failure(it) }
+        }
+
+        return Result.success(Unit)
+    }
 }

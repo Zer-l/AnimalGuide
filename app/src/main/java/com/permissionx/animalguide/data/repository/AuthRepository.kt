@@ -3,7 +3,12 @@ package com.permissionx.animalguide.data.repository
 import com.permissionx.animalguide.data.local.CachedUserDao
 import com.permissionx.animalguide.data.local.entity.CachedUserEntity
 import com.permissionx.animalguide.data.remote.cloudbase.AuthDataSource
+import com.permissionx.animalguide.data.remote.cloudbase.CollectDataSource
+import com.permissionx.animalguide.data.remote.cloudbase.CommentDataSource
 import com.permissionx.animalguide.data.remote.cloudbase.DefaultImageHelper
+import com.permissionx.animalguide.data.remote.cloudbase.FollowDataSource
+import com.permissionx.animalguide.data.remote.cloudbase.LikeDataSource
+import com.permissionx.animalguide.data.remote.cloudbase.PostDataSource
 import com.permissionx.animalguide.data.remote.cloudbase.StorageDataSource
 import com.permissionx.animalguide.data.remote.cloudbase.UserDataSource
 import com.permissionx.animalguide.data.remote.cloudbase.UserSessionManager
@@ -14,6 +19,11 @@ import javax.inject.Singleton
 class AuthRepository @Inject constructor(
     private val authDataSource: AuthDataSource,
     private val userDataSource: UserDataSource,
+    private val postDataSource: PostDataSource,
+    private val commentDataSource: CommentDataSource,
+    private val likeDataSource: LikeDataSource,
+    private val collectDataSource: CollectDataSource,
+    private val followDataSource: FollowDataSource,
     private val userSessionManager: UserSessionManager,
     private val storageDataSource: StorageDataSource,
     private val defaultImageHelper: DefaultImageHelper,
@@ -210,5 +220,74 @@ class AuthRepository @Inject constructor(
     suspend fun checkUserExists(phone: String, verificationToken: String): Boolean {
         val result = authDataSource.tryLogin(phone, verificationToken)
         return result.isSuccess
+    }
+
+    suspend fun deleteAccount(): Result<Unit> {
+        val uid = userSessionManager.currentUser.value?.uid
+            ?: return Result.failure(Exception("未登录"))
+
+        // 1. 修复点赞计数 → 同步帖子/评论作者获赞数 → 逐条删除点赞记录（非致命）
+        val likeRecords = likeDataSource.getUserLikeRecords(uid).getOrNull() ?: emptyList()
+        likeRecords.forEach { like ->
+            val targetId = like["targetId"] as? String ?: return@forEach
+            val targetType = like["targetType"] as? String ?: return@forEach
+            when (targetType) {
+                "POST" -> {
+                    val authorUid = postDataSource.decrementPostField(targetId, "likeCount").getOrNull()
+                    authorUid?.let { userDataSource.updateUserCount(it, "likeCount", -1) }
+                }
+                "COMMENT" -> commentDataSource.decrementCommentLikeCount(targetId)
+            }
+        }
+        likeRecords.forEach { like ->
+            (like["_id"] as? String)?.let { likeDataSource.deleteLikeById(it) }
+        }
+
+        // 2. 修复收藏计数 → 逐条删除收藏记录（非致命）
+        val collectRecords = collectDataSource.getUserCollectRecords(uid).getOrNull() ?: emptyList()
+        collectRecords.forEach { collect ->
+            val postId = collect["postId"] as? String ?: return@forEach
+            postDataSource.decrementPostField(postId, "collectCount")
+        }
+        collectRecords.forEach { collect ->
+            (collect["_id"] as? String)?.let { collectDataSource.deleteCollectById(it) }
+        }
+
+        // 3. 修复关注计数：我关注的人 followerCount -1（非致命）
+        followDataSource.getAllFollowingUids(uid).getOrNull()?.forEach { toUid ->
+            userDataSource.updateUserCount(toUid, "followerCount", -1)
+        }
+
+        // 4. 修复粉丝计数：关注我的人 followCount -1（非致命）
+        followDataSource.getAllFollowerUids(uid).getOrNull()?.forEach { fromUid ->
+            userDataSource.updateUserCount(fromUid, "followCount", -1)
+        }
+
+        // 5. 删除关注/粉丝记录（非致命）
+        followDataSource.deleteUserFollows(uid)
+
+        // 6. 删除评论（非致命）
+        val commentPostCounts = commentDataSource.getUserCommentPostCounts(uid).getOrNull()
+        commentDataSource.deleteUserComments(uid)
+        commentPostCounts?.forEach { (postId, count) ->
+            postDataSource.decrementPostCommentCount(postId, count)
+        }
+
+        // 7. 删除帖子（致命：先查出所有 _id，再逐条删除）
+        postDataSource.deleteUserPosts(uid).onFailure {
+            return Result.failure(Exception("注销失败：删除帖子时出错"))
+        }
+
+        // 8. 删除用户文档（致命）
+        userDataSource.deleteUser(uid).onFailure {
+            return Result.failure(Exception("注销失败：删除用户数据时出错"))
+        }
+
+        // 9. 删除 Auth 账号（非致命）
+        authDataSource.deleteAuthAccount()
+
+        // 10. 清除本地 Session
+        userSessionManager.onLogout()
+        return Result.success(Unit)
     }
 }

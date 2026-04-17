@@ -94,6 +94,42 @@ class LikeDataSource @Inject constructor(
         )
     }
 
+    // 注销时用：分页收集该用户所有点赞记录（含 targetId、targetType）
+    suspend fun getUserLikeRecords(uid: String): Result<List<Map<String, Any>>> {
+        var pageNumber = 1
+        val all = mutableListOf<Map<String, Any>>()
+        while (true) {
+            val result = client.request<Map<String, Any>>(
+                method = "POST",
+                path = "/v1/model/$ENV_TYPE/$MODEL/list",
+                body = mapOf(
+                    "pageSize" to 50,
+                    "pageNumber" to pageNumber,
+                    "filter" to mapOf("where" to mapOf("uid" to mapOf("\$eq" to uid)))
+                ),
+                typeToken = object : TypeToken<Map<String, Any>>() {}
+            )
+            result.onFailure { return Result.failure(it) }
+            val data = (result.getOrNull()?.get("data") as? Map<*, *>) ?: break
+            val records = (data["records"] as? List<*>) ?: break
+            if (records.isEmpty()) break
+            all.addAll(records.filterIsInstance<Map<String, Any>>())
+            val total = (data["total"] as? Double)?.toInt() ?: 0
+            if (all.size >= total) break
+            pageNumber++
+        }
+        return Result.success(all)
+    }
+
+    // 注销时用：按 _id 逐条删除（批量按 uid 删会被安全规则拦截）
+    suspend fun deleteLikeById(id: String) {
+        client.request<Any>(
+            method = "POST",
+            path = "/v1/model/$ENV_TYPE/$MODEL/delete",
+            body = mapOf("filter" to mapOf("where" to mapOf("_id" to mapOf("\$eq" to id))))
+        )
+    }
+
     // 删除某个目标的所有点赞记录
     suspend fun deleteAllLikes(targetId: String, targetType: String): Result<Boolean> {
         val result = client.request<Any>(

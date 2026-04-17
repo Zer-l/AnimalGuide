@@ -27,6 +27,8 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.tooling.preview.Preview
+import com.permissionx.animalguide.ui.me.MeViewModel
 
 @Composable
 fun SetPasswordScreen(
@@ -134,7 +136,7 @@ fun SetPasswordScreen(
                 }
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(21.dp))
 
             // 确认密码输入框
             OutlinedTextField(
@@ -177,8 +179,13 @@ fun SetPasswordScreen(
                 supportingText = {
                     if (!passwordMatch) {
                         Text(
-                            "两次密码不一致",
-                            color = MaterialTheme.colorScheme.error
+                            text = "两次密码不一致",
+                            color = MaterialTheme.colorScheme.error,
+                            fontSize = 13.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(4.dp)
                         )
                     }
                 }
@@ -186,15 +193,17 @@ fun SetPasswordScreen(
 
             // 错误提示
             if (state is SetPasswordUiState.Error) {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = (state as SetPasswordUiState.Error).message,
                     color = MaterialTheme.colorScheme.error,
-                    fontSize = 13.sp
+                    fontSize = 13.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             // 设置密码按钮
             Button(

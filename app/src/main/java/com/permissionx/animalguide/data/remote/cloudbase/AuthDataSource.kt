@@ -154,6 +154,18 @@ class AuthDataSource @Inject constructor(
         )
     }
 
+    // 注销账号：删除 CloudBase Auth 账号，执行后 token 立即失效
+    suspend fun deleteAuthAccount(): Result<Unit> {
+        val result = client.request<Any>(
+            method = "DELETE",
+            path = "/auth/v1/me"
+        )
+        return result.fold(
+            onSuccess = { Result.success(Unit) },
+            onFailure = { Result.failure(it) }
+        )
+    }
+
     // tryLogin
     suspend fun tryLogin(
         phoneNumber: String,

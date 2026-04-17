@@ -181,4 +181,20 @@ class UserDataSource @Inject constructor(
             onFailure = { Result.failure(Exception("保存失败，请稍后重试")) }
         )
     }
+
+    suspend fun deleteUser(uid: String): Result<Unit> {
+        val result = client.request<Any>(
+            method = "POST",
+            path = "/v1/model/$ENV_TYPE/$MODEL/delete",
+            body = mapOf(
+                "filter" to mapOf(
+                    "where" to mapOf("_openid" to mapOf("\$eq" to uid))
+                )
+            )
+        )
+        return result.fold(
+            onSuccess = { Result.success(Unit) },
+            onFailure = { Result.failure(it) }
+        )
+    }
 }
