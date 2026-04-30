@@ -15,5 +15,5 @@ data class AnimalInfo(
     val activityPattern: String = "",  // 活动习性 + 繁殖方式
     val socialBehavior: String = "",   // 社会行为
     val ecologicalRole: String = "",   // 生态作用 + 与人类关系 + 数量趋势
-    val funFacts: String = ""          // 天敌/威胁 + 有趣行为趣闻
+    val researchValue: String = ""     // 科研价值与代表性研究成果
 )

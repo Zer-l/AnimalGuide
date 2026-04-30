@@ -234,7 +234,7 @@ fun HistoryDetailContent(
                         Text("😢", fontSize = 32.sp)
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = if (history.isSuccess) "该动物未收录图鉴" else "识别失败",
+                            text = if (history.isSuccess) "该动物未收录" else "识别失败",
                             fontSize = 14.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

@@ -27,6 +27,10 @@ object Routes {
     const val FOLLOWING_LIST = "following_list/{uid}"
     const val FOLLOWER_LIST = "follower_list/{uid}"
     const val ABOUT = "about"
+    const val WEBVIEW = "webview/{title}/{assetFile}"
+
+    fun webView(title: String, assetFile: String) =
+        "webview/${Uri.encode(title)}/${Uri.encode(assetFile)}"
     const val ANIMAL_CHAT = "animal_chat/{animalName}"
     const val QA = "qa"
     const val GENERAL_CHAT = "general_chat/{conversationId}"

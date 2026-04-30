@@ -27,5 +27,6 @@ data class AnimalEntry(
     val activityPattern: String = "",
     val socialBehavior: String = "",
     val ecologicalRole: String = "",
-    val funFacts: String = ""
+    @androidx.room.ColumnInfo(name = "funFacts")
+    val researchValue: String = ""
 )

@@ -45,7 +45,7 @@ android {
         minSdk = 26
         targetSdk = 35
         versionCode = 2
-        versionName = "1.2"
+        versionName = "2.0"
 
         buildConfigField("String", "BAIDU_API_KEY", "\"${localProperties["BAIDU_API_KEY"]}\"")
         buildConfigField("String", "BAIDU_SECRET_KEY", "\"${localProperties["BAIDU_SECRET_KEY"]}\"")

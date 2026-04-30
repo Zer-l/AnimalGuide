@@ -26,11 +26,13 @@ class AnimalChatRepository @Inject constructor(
         fun animalSystemPrompt(animalName: String) =
             "你是一位专业的动物科普专家，现在正在与用户讨论「$animalName」。" +
             "请用简洁、准确、友好的语言回答用户关于该动物的问题。" +
-            "如果用户提问与该动物无关，请礼貌地引导话题回到动物相关内容。"
+            "如果用户提问与该动物无关，请礼貌地引导话题回到动物相关内容。" +
+            "回答时不要使用Markdown格式，不要使用**加粗**、# 标题、- 列表、--- 分割线等符号，直接用自然语言分段作答。"
 
         const val GENERAL_SYSTEM_PROMPT =
             "你是一位专业的动物科普专家，可以回答关于任何动物的问题，" +
-            "包括习性、分布、保护状况、形态特征等内容。请用简洁、准确、友好的语言作答。"
+            "包括习性、分布、保护状况、形态特征等内容。请用简洁、准确、友好的语言作答。" +
+            "回答时不要使用Markdown格式，不要使用**加粗**、# 标题、- 列表、--- 分割线等符号，直接用自然语言分段作答。"
     }
 
     suspend fun getHistory(conversationId: String): List<ChatMessage> =

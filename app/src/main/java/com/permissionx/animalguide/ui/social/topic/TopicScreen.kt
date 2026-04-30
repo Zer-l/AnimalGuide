@@ -31,7 +31,8 @@ fun TopicScreen(
     val selectedTab by viewModel.selectedTab.collectAsState()
     val listState = rememberLazyListState()
     val socialViewModel: SocialViewModel = hiltViewModel()
-    val isLoggedIn = socialViewModel.uiState.collectAsState(initial = SocialUiState.Guest).value is SocialUiState.LoggedIn
+    val isLoggedIn =
+        socialViewModel.uiState.collectAsState(initial = SocialUiState.Guest).value is SocialUiState.LoggedIn
 
     // 刷新后滚到顶部
     val justRefreshed = (state as? FeedUiState.Success)?.justRefreshed ?: false
@@ -101,8 +102,8 @@ fun TopicScreen(
                     ) {
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text("🌿", fontSize = 48.sp)
-                                Spacer(modifier = Modifier.height(16.dp))
+//                                Text("🌿", fontSize = 48.sp)
+//                                Spacer(modifier = Modifier.height(16.dp))
                                 Text(
                                     text = "该话题下还没有帖子",
                                     fontSize = 16.sp,
@@ -142,8 +143,9 @@ fun TopicScreen(
                                     onClick = { navController.navigate(Routes.postDetail(post.id)) },
                                     onLike = {
                                         if (isLoggedIn) {
-                                            val latest = (viewModel.state.value as? FeedUiState.Success)
-                                                ?.posts?.find { it.id == post.id } ?: post
+                                            val latest =
+                                                (viewModel.state.value as? FeedUiState.Success)
+                                                    ?.posts?.find { it.id == post.id } ?: post
                                             viewModel.toggleLike(latest)
                                         }
                                     },
@@ -152,8 +154,9 @@ fun TopicScreen(
                                     },
                                     onCollect = {
                                         if (isLoggedIn) {
-                                            val latest = (viewModel.state.value as? FeedUiState.Success)
-                                                ?.posts?.find { it.id == post.id } ?: post
+                                            val latest =
+                                                (viewModel.state.value as? FeedUiState.Success)
+                                                    ?.posts?.find { it.id == post.id } ?: post
                                             viewModel.toggleCollect(latest)
                                         }
                                     },
@@ -172,7 +175,9 @@ fun TopicScreen(
                             if (s.isLoadingMore) {
                                 item {
                                     Box(
-                                        Modifier.fillMaxWidth().padding(16.dp),
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .padding(16.dp),
                                         contentAlignment = Alignment.Center
                                     ) { CircularProgressIndicator(modifier = Modifier.size(24.dp)) }
                                 }
@@ -181,7 +186,9 @@ fun TopicScreen(
                             if (!s.hasMore && s.posts.isNotEmpty()) {
                                 item {
                                     Box(
-                                        Modifier.fillMaxWidth().padding(16.dp),
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .padding(16.dp),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(

@@ -106,8 +106,8 @@ fun HistoryScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     } else {
-                        Text("📷", fontSize = 64.sp)
-                        Spacer(modifier = Modifier.height(16.dp))
+//                        Text("📷", fontSize = 64.sp)
+//                        Spacer(modifier = Modifier.height(16.dp))
                         Text(
                             text = "还没有识别记录",
                             fontSize = 16.sp,

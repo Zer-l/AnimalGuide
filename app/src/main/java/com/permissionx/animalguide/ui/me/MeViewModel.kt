@@ -6,6 +6,7 @@ import com.permissionx.animalguide.data.remote.cloudbase.UserSessionManager
 import com.permissionx.animalguide.data.repository.PostRepository
 import com.permissionx.animalguide.data.repository.PostUpdateEvent
 import com.permissionx.animalguide.data.repository.UserRepository
+import com.permissionx.animalguide.domain.usecase.social.auth.DeleteAccountUseCase
 import com.permissionx.animalguide.domain.usecase.social.auth.LogoutUseCase
 import com.permissionx.animalguide.domain.usecase.social.user.GetUserPostsUseCase
 import com.permissionx.animalguide.domain.usecase.social.user.GetUserProfileUseCase
@@ -15,6 +16,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+sealed class DeleteAccountState {
+    data object Idle : DeleteAccountState()
+    data object Loading : DeleteAccountState()
+    data object Success : DeleteAccountState()
+    data class Error(val message: String) : DeleteAccountState()
+}
+
 @HiltViewModel
 class MeViewModel @Inject constructor(
     private val userSessionManager: UserSessionManager,
@@ -22,6 +30,7 @@ class MeViewModel @Inject constructor(
     private val getUserPostsUseCase: GetUserPostsUseCase,
     private val postRepository: PostRepository,
     private val logoutUseCase: LogoutUseCase,
+    private val deleteAccountUseCase: DeleteAccountUseCase,
     private val userRepository: UserRepository,
     private val postUpdateEvent: PostUpdateEvent
 ) : ViewModel() {
@@ -182,6 +191,25 @@ class MeViewModel @Inject constructor(
     }
 
     fun logout() = logoutUseCase()
+
+    private val _deleteAccountState = MutableStateFlow<DeleteAccountState>(DeleteAccountState.Idle)
+    val deleteAccountState = _deleteAccountState.asStateFlow()
+
+    fun deleteAccount() {
+        viewModelScope.launch {
+            _deleteAccountState.value = DeleteAccountState.Loading
+            val result = deleteAccountUseCase()
+            _deleteAccountState.value = if (result.isSuccess) {
+                DeleteAccountState.Success
+            } else {
+                DeleteAccountState.Error(result.exceptionOrNull()?.message ?: "注销失败，请稍后重试")
+            }
+        }
+    }
+
+    fun resetDeleteAccountState() {
+        _deleteAccountState.value = DeleteAccountState.Idle
+    }
 
     fun toggleLike(post: com.permissionx.animalguide.domain.model.social.Post) {
         viewModelScope.launch {

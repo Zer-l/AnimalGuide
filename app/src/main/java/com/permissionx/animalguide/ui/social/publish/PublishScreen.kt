@@ -157,7 +157,7 @@ fun PublishScreen(
 //                    color = MaterialTheme.colorScheme.primaryContainer
 //                ) {
 //                    Text(
-//                        text = "🦁 分享动物：$animalName",
+//                        text = "🐼 分享动物：$animalName",
 //                        fontSize = 13.sp,
 //                        color = MaterialTheme.colorScheme.onPrimaryContainer,
 //                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)

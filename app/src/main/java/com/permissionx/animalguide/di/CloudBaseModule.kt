@@ -107,6 +107,11 @@ object CloudBaseModule {
     fun provideAuthRepository(
         authDataSource: AuthDataSource,
         userDataSource: UserDataSource,
+        postDataSource: PostDataSource,
+        commentDataSource: CommentDataSource,
+        likeDataSource: LikeDataSource,
+        collectDataSource: CollectDataSource,
+        followDataSource: FollowDataSource,
         userSessionManager: UserSessionManager,
         storageDataSource: StorageDataSource,
         defaultImageHelper: DefaultImageHelper,
@@ -114,6 +119,11 @@ object CloudBaseModule {
     ): AuthRepository = AuthRepository(
         authDataSource,
         userDataSource,
+        postDataSource,
+        commentDataSource,
+        likeDataSource,
+        collectDataSource,
+        followDataSource,
         userSessionManager,
         storageDataSource,
         defaultImageHelper,

@@ -57,7 +57,7 @@ class AnimalRepository @Inject constructor(
                 activityPattern = info.activityPattern,
                 socialBehavior = info.socialBehavior,
                 ecologicalRole = info.ecologicalRole,
-                funFacts = info.funFacts
+                researchValue = info.researchValue
             )
         )
         return existing != null
@@ -79,7 +79,7 @@ class AnimalRepository @Inject constructor(
                 activityPattern = info.activityPattern,
                 socialBehavior = info.socialBehavior,
                 ecologicalRole = info.ecologicalRole,
-                funFacts = info.funFacts
+                researchValue = info.researchValue
             )
         )
     }

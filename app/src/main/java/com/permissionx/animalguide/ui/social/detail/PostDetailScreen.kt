@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
 import coil.compose.AsyncImage
 import com.permissionx.animalguide.ui.auth.LoginViewModel
@@ -43,9 +44,11 @@ fun PostDetailScreen(
     val focusRequester = remember { FocusRequester() }
     var showMoreMenu by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showLoginDialog by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     val loginViewModel: LoginViewModel = hiltViewModel(
-        viewModelStoreOwner = LocalContext.current as ComponentActivity
+        viewModelStoreOwner = context as ComponentActivity
     )
 
     LaunchedEffect(postId) {
@@ -61,6 +64,25 @@ fun PostDetailScreen(
         }.collect { nearEnd ->
             if (nearEnd) viewModel.loadMoreComments()
         }
+    }
+
+    // 登录提示弹窗
+    if (showLoginDialog) {
+        AlertDialog(
+            onDismissRequest = { showLoginDialog = false },
+            title = { Text("登录后才能使用此功能") },
+            text = { Text("登录后可以点赞、评论、收藏，加入晓物社区！") },
+            confirmButton = {
+                Button(onClick = {
+                    showLoginDialog = false
+                    loginViewModel.resetState()
+                    navController.navigate(Routes.LOGIN)
+                }) { Text("去登录") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLoginDialog = false }) { Text("暂不登录") }
+            }
+        )
     }
 
     // 删除确认弹窗
@@ -215,7 +237,14 @@ fun PostDetailScreen(
                         } else {
                             DropdownMenuItem(
                                 text = { Text("举报") },
-                                onClick = { showMoreMenu = false }
+                                onClick = {
+                                    showMoreMenu = false
+                                    Toast.makeText(
+                                        context,
+                                        "功能开发中，敬请期待",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
                             )
                         }
                     }
@@ -227,7 +256,10 @@ fun PostDetailScreen(
                 replyTo = state.replyTo,
                 isSubmitting = state.isSubmittingComment,
                 focusRequester = focusRequester,
-                onSubmit = { viewModel.submitComment(it) },
+                onSubmit = {
+                    if (viewModel.currentUserId != null) viewModel.submitComment(it)
+                    else showLoginDialog = true
+                },
                 onCancelReply = { viewModel.setReplyTo(null) }
             )
         }
@@ -251,7 +283,10 @@ fun PostDetailScreen(
                         .padding(innerPadding),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(text = state.error ?: "加载失败", color = MaterialTheme.colorScheme.error)
+                    Text(
+                        text = state.error ?: "加载失败",
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
             }
 
@@ -275,9 +310,18 @@ fun PostDetailScreen(
                     item {
                         PostActionBar(
                             post = state.post!!,
-                            onLike = { viewModel.toggleLike() },
-                            onComment = { focusRequester.requestFocus() },
-                            onCollect = { viewModel.toggleCollect() }
+                            onLike = {
+                                if (viewModel.currentUserId != null) viewModel.toggleLike()
+                                else showLoginDialog = true
+                            },
+                            onComment = {
+                                if (viewModel.currentUserId != null) focusRequester.requestFocus()
+                                else showLoginDialog = true
+                            },
+                            onCollect = {
+                                if (viewModel.currentUserId != null) viewModel.toggleCollect()
+                                else showLoginDialog = true
+                            }
                         )
                     }
 
@@ -310,7 +354,10 @@ fun PostDetailScreen(
                                 ) {
                                     Text(
                                         text = "离线模式 · 评论暂不可用",
-                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                        modifier = Modifier.padding(
+                                            horizontal = 16.dp,
+                                            vertical = 8.dp
+                                        ),
                                         fontSize = 13.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )

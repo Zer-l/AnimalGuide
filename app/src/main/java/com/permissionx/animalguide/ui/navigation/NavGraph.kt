@@ -46,6 +46,7 @@ import com.permissionx.animalguide.ui.chat.AnimalChatScreen
 import com.permissionx.animalguide.ui.chat.GeneralChatScreen
 import com.permissionx.animalguide.ui.qa.QAScreen
 import com.permissionx.animalguide.ui.social.topic.TopicScreen
+import com.permissionx.animalguide.ui.privacy.WebViewScreen
 
 sealed class BottomNavItem(
     val route: String,
@@ -92,6 +93,7 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
             && currentRoute?.startsWith("animal_chat") == false
             && currentRoute?.startsWith("general_chat") == false
             && currentRoute?.startsWith("topic") == false
+            && currentRoute?.startsWith("webview") == false
 
     Scaffold(
         bottomBar = {
@@ -374,6 +376,16 @@ fun AppNavGraph(navController: NavHostController = rememberNavController()) {
             composable(route = Routes.GENERAL_CHAT) { backStackEntry ->
                 val conversationId = backStackEntry.arguments?.getString("conversationId") ?: ""
                 GeneralChatScreen(navController = navController)
+            }
+
+            composable(route = Routes.WEBVIEW) { backStackEntry ->
+                val title = backStackEntry.arguments?.getString("title") ?: ""
+                val assetFile = backStackEntry.arguments?.getString("assetFile") ?: ""
+                WebViewScreen(
+                    title = title,
+                    assetFile = assetFile,
+                    onBack = { navController.popBackStack() }
+                )
             }
         }
     }

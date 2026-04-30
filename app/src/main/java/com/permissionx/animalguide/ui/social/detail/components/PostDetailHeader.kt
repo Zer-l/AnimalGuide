@@ -95,7 +95,7 @@ fun PostDetailHeader(
 //                    modifier = Modifier.padding(bottom = 8.dp)
 //                ) {
 //                    Text(
-//                        text = "🦁 ${post.animalName}",
+//                        text = "🐼 ${post.animalName}",
 //                        fontSize = 12.sp,
 //                        color = MaterialTheme.colorScheme.onPrimaryContainer,
 //                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
